@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "AfterTool": [
+      {
+        "matcher": "write_file|replace",
+        "hooks": [
+          {
+            "type": "command",
+            "name": "integration-verifier-fast-check",
+            "description": "Fast Integration Verifier check of the file just written",
+            "command": "node \"${extensionPath}${/}scripts${/}iv-launch.mjs\" hook gemini-cli post-write",
+            "timeout": 60000
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "name": "integration-verifier-gate",
+            "description": "Integration Verifier gate: asks for another pass while blocking findings are open",
+            "command": "node \"${extensionPath}${/}scripts${/}iv-launch.mjs\" hook gemini-cli stop",
+            "timeout": 300000
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -179,6 +179,25 @@ export function installCodex(opts: InstallOptions): InstallResult {
   };
 }
 
+/**
+ * Gemini CLI: copies the extension into ~/.gemini/extensions/integration-verifier, which
+ * is what `gemini extensions install <path>` does. Paths inside use ${extensionPath},
+ * which Gemini CLI expands, so the copy needs no rewriting. Extensions are user-wide.
+ */
+export function installGeminiCli(opts: InstallOptions): InstallResult {
+  const changes: FileChange[] = [];
+  const dir = join(homeOf(opts), ".gemini", "extensions", PLUGIN);
+  copyAdapter(join(REPO_ROOT, "adapters", "gemini-cli"), dir, (_rel, text) => text, opts, changes);
+  return {
+    harness: "gemini-cli",
+    changes,
+    nextSteps: [
+      ...(opts.scope === "project" ? ["Gemini CLI extensions are user-wide; installed for your user, not only this project."] : []),
+      "Restart Gemini CLI; `gemini extensions list` should show integration-verifier. Alternative: gemini extensions install <repo>/adapters/gemini-cli",
+    ],
+  };
+}
+
 /** Which harnesses look installed on this machine. */
 export function detectHarnesses(opts: InstallOptions): Harness[] {
   const home = homeOf(opts);
@@ -192,4 +211,5 @@ export function detectHarnesses(opts: InstallOptions): Harness[] {
 export const INSTALLERS: Partial<Record<Harness, (opts: InstallOptions) => InstallResult>> = {
   "claude-code": installClaudeCode,
   codex: installCodex,
+  "gemini-cli": installGeminiCli,
 };

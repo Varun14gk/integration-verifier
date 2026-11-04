@@ -39,6 +39,8 @@ harness's own files, backing up any file it changes (`*.iv-backup`).
 - **Codex**: installs the plugin into `~/.codex/plugins/integration-verifier`, lists it in the
   personal marketplace, enables it in `config.toml` and adds a pointer to `AGENTS.md`. Restart
   Codex and trust the hooks with `/hooks`.
+- **Gemini CLI**: copies the extension to `~/.gemini/extensions/integration-verifier` (MCP server,
+  `GEMINI.md` context, skill, `AfterTool` fast check and `AfterAgent` gate).
 
 ## Pattern engine (for leak checks)
 
