@@ -8,7 +8,8 @@ A Gemini CLI extension. Install with `iv install --gemini-cli` (copies this fold
 |---|---|
 | `gemini-extension.json` | Manifest: the `integration-verifier` MCP server for `${workspacePath}`, and `GEMINI.md` as context |
 | `GEMINI.md` | Short instruction pointer loaded as context |
-| `skills/integration-verifier/SKILL.md` | Same skill as the other adapters |
+| `skills/*/SKILL.md` | The six shared skills |
+| `agents/*.md` | The three read-only subagents (Gemini CLI subagents are a preview feature) |
 | `hooks/hooks.json` | `AfterTool` on `write_file\|replace`: fast check, returned as `additionalContext`. `AfterAgent`: the full gate; `decision: "deny"` sends the findings back as a new prompt, once per distinct set of blocking findings |
 | `scripts/iv-launch.mjs` | Copy of `adapters/shared/iv-launch.mjs` |
 
