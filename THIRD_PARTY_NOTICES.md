@@ -11,6 +11,7 @@ installed package against the approved list and fails on anything else.
 | [commander](https://github.com/tj/commander.js) | 15.0.0 | MIT | `packages/cli` |
 | [yaml](https://github.com/eemeli/yaml) | 2.9.1 | ISC | `packages/core` |
 | [zod](https://github.com/colinhacks/zod) | 4.6.7 | MIT | `packages/core` |
+| [@vscode/tree-sitter-wasm](https://github.com/microsoft/vscode-tree-sitter-wasm) | 0.3.1 | MIT | `packages/core` (bundles the [tree-sitter](https://github.com/tree-sitter/tree-sitter) runtime and official grammars, all MIT) |
 
 ## Development dependencies (not shipped)
 
@@ -41,4 +42,4 @@ sets are **not** used or redistributed.
 ## Planned
 
 Recorded here as they are added: Playwright (Apache-2.0, with its NOTICE text),
-web-tree-sitter and grammars (MIT), @modelcontextprotocol/sdk (MIT), fast-glob (MIT).
+@modelcontextprotocol/sdk (MIT), fast-glob (MIT).
