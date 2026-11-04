@@ -24,7 +24,7 @@ function where(f: { evidence: { file?: string; line?: number }[] }): string {
   return `${f.evidence[0]!.file}:${f.evidence[0]!.line}`;
 }
 
-describe.each(["react-fastapi", "angular-spring", "nextjs-express"])("iv check on %s", (fixture) => {
+describe.each(["react-fastapi", "angular-spring", "nextjs-express", "schema-first"])("iv check on %s", (fixture) => {
   const root = join(FIXTURES, fixture);
   const expected = JSON.parse(readFileSync(join(root, "expected.json"), "utf8"));
   let report: CheckReport;
@@ -88,6 +88,10 @@ describe("classifyMatch", () => {
     expect(looksLikeSecret("Sup3rS3cretDbPass!")).toBe(true);
     expect(classifyMatch(m("iv-secret-assign-js"), 'const TOKEN_KEY = "access_token"', config)).toBeNull();
     expect(classifyMatch(m("iv-secret-config"), "spring.datasource.password=${DB_PASSWORD}", config)).toBeNull();
+    // Schema definitions in OpenAPI / JSON Schema YAML are structure, not secrets.
+    expect(classifyMatch(m("iv-secret-config"), "passwordHash: { type: string }", config)).toBeNull();
+    expect(classifyMatch(m("iv-secret-config"), "apiKey: &key", config)).toBeNull();
+    expect(classifyMatch(m("iv-secret-config"), "api_token: Zx9!rT4#pLq2 # rotate", config)?.category).toBe("hardcoded-secret");
   });
 
   it("flags stack traces in error responses", () => {

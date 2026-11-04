@@ -14,6 +14,7 @@ installed package against the approved list and fails on anything else.
 | [@vscode/tree-sitter-wasm](https://github.com/microsoft/vscode-tree-sitter-wasm) | 0.3.1 | MIT | `packages/core` (bundles the [tree-sitter](https://github.com/tree-sitter/tree-sitter) runtime and official grammars, all MIT) |
 | [playwright](https://github.com/microsoft/playwright) | 1.64.1 | Apache-2.0 | `packages/runtime` (see its NOTICE below) |
 | [yaml](https://github.com/eemeli/yaml) | 2.9.1 | ISC | `packages/runtime` (test-data files) |
+| [graphql](https://github.com/graphql/graphql-js) | 17.0.2 | MIT | `packages/core` (validates GraphQL operations against the schema) |
 | [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) | 1.32.1 | MIT | `packages/mcp` (its own dependencies are MIT/ISC/BSD, checked by `npm run licenses`) |
 
 ### Playwright NOTICE

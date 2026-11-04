@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { CATEGORIES, loadConfig, SEVERITIES } from "@integration-verifier/core";
 
 const FIXTURES = join(import.meta.dirname, "..", "fixtures");
-const EXPECTED_FIXTURES = ["angular-spring", "nextjs-express", "react-fastapi"];
+const EXPECTED_FIXTURES = ["angular-spring", "nextjs-express", "react-fastapi", "schema-first"];
 
 interface Location {
   file: string;
@@ -33,7 +33,7 @@ const fixtureDirs = readdirSync(FIXTURES, { withFileTypes: true })
   .map((d) => d.name)
   .sort();
 
-it("has the three fixtures from the spec", () => {
+it("has the expected fixtures", () => {
   expect(fixtureDirs).toEqual(EXPECTED_FIXTURES);
 });
 

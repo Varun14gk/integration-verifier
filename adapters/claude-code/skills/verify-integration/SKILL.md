@@ -30,4 +30,7 @@ description: Check that frontend calls reach the right backend routes with match
 
 - Separate repositories: pass the other repo's path in `also` (e.g. `also: ["../backend"]`).
 - If `iv_detect` reports a frontend or backend as **unsupported**, say so to the user. Don't
-  assume it is fine.
+  assume it is fine. An OpenAPI/Swagger file, a GraphQL schema (`.graphql`) or `.proto` files
+  in the project still let the map check it, whatever its language.
+- GraphQL operations (`gql` templates, `.graphql` files) are validated against the schema;
+  errors include the schema's own "Did you mean" hint.

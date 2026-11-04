@@ -164,6 +164,19 @@ how to start the app. Commit `.iv/config.yaml`; the other files in `.iv/` are ge
   `gate.failOn` to `critical`.
 - **Codex hooks don't run:** trust them with `/hooks`.
 
+## What it understands
+
+| Source | How |
+|---|---|
+| Frontend calls in `.js`/`.ts`/`.jsx`/`.tsx` files (React, Next.js, Angular, React Native, Vue and Svelte logic in script files) | `fetch`, `axios` and instances, Angular `HttpClient`. Calls inside `.vue`/`.svelte` single-file components are next on the roadmap |
+| Backends from code | FastAPI, Flask, Django, Express, NestJS, Next.js API routes, Spring Boot, ASP.NET Core, Go (gin, echo, chi, net/http) |
+| **Any backend, any language** | An **OpenAPI 3 / Swagger 2** file, a **GraphQL schema** (`.graphql`, or SDL in `gql` templates) or **`.proto`** files are read as the backend's contract |
+| GraphQL clients | Operations in `gql`/`graphql` templates and `.graphql` files, validated against the schema |
+| gRPC-web / Connect clients | `createClient(Service)` / `new ServiceClient()` calls matched to the `.proto` rpcs |
+| Everything at runtime | `iv runtime` watches the real traffic, whatever the stack |
+
+A stack it can't read is reported as **unsupported**, never guessed.
+
 ## Without a coding agent: git hook and CI
 
 The same gate runs outside harnesses:

@@ -24,7 +24,7 @@ function where(f: { evidence: { kind: string; file?: string; line?: number }[] }
   return `${e.file}:${e.line}`;
 }
 
-describe.each(["react-fastapi", "angular-spring", "nextjs-express"])("fixture %s", (fixture) => {
+describe.each(["react-fastapi", "angular-spring", "nextjs-express", "schema-first"])("fixture %s", (fixture) => {
   const expected = JSON.parse(readFileSync(join(FIXTURES, fixture, "expected.json"), "utf8"));
   let map: MapReport;
   const load = async () => (map ??= await buildMap(join(FIXTURES, fixture)));

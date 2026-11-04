@@ -1,0 +1,21 @@
+# Test fixture: deliberately broken sample app. Do not use as a reference.
+type Query {
+  user(id: ID!): User
+  users: [User!]!
+  auditLog: [AuditEvent!]!
+}
+
+type Mutation {
+  renameUser(id: ID!, displayName: String!): User
+}
+
+type User {
+  id: ID!
+  displayName: String!
+  email: String!
+}
+
+type AuditEvent {
+  id: ID!
+  action: String!
+}

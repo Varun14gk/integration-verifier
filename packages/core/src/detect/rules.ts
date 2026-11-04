@@ -141,6 +141,12 @@ export const UNSUPPORTED_MANIFESTS: Record<string, string> = {
   "Cargo.toml": "Rust",
   "mix.exs": "Elixir",
   "pubspec.yaml": "Dart/Flutter",
+  "build.sbt": "Scala",
+  "project.clj": "Clojure",
+  "deps.edn": "Clojure",
+  "stack.yaml": "Haskell",
+  "dune-project": "OCaml",
+  "shard.yml": "Crystal",
 };
 
 /** Hosts that are never treated as outbound API calls. */

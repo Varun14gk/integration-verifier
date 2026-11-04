@@ -8,7 +8,10 @@ import { readText, walkFiles } from "../fs-walk.js";
 import { grammarFor, lineOfNode, withTree } from "../parse/tree-sitter.js";
 import { collectClientFacts, extractCallsFromTree, type ClientContext } from "./client-ts.js";
 import { matchCallsToRoutes } from "./match.js";
-import { joinPaths } from "./paths.js";
+import { classifySources, gqlTemplates, graphqlMap, type GqlSource } from "./graphql.js";
+import { grpcClientCalls, parseProto, protoRoutes } from "./grpc.js";
+import { joinPaths, normalizePath } from "./paths.js";
+import { openApiRoutes } from "./server-openapi.js";
 import { collectJsServer, extractExpressRoutes, extractNestRoutes, type JsServerContext } from "./server-js.js";
 import {
   collectCsDtos, collectJavaDtos, extractAspNetRoutes, extractGoRoutes, extractSpringRoutes, type DtoIndex,
@@ -164,7 +167,60 @@ export async function buildMap(root: string, opts: BuildMapOptions = {}): Promis
       if (r.skipped) skipped.push({ unit: unit.dir, reason: r.skipped });
     }
   }
-  return { calls, routes, ...matchCallsToRoutes(calls, routes, stack.joins), skipped };
+
+  // Schema files describe the API whatever the backend's language: OpenAPI, .proto, GraphQL SDL.
+  const schemas = collectSchemas(absRoot, stack);
+  const codeKeys = new Set(routes.map((r) => `${r.method} ${normalizePath(r.path).key}`));
+  for (const r of schemas.specRoutes) {
+    if (!codeKeys.has(`${r.method} ${normalizePath(r.path).key}`)) routes.push(r);
+  }
+  calls.push(...schemas.grpcCalls);
+
+  const rest = matchCallsToRoutes(calls, routes, stack.joins);
+  const gql = graphqlMap(schemas.gql.schema, schemas.gql.operations);
+  if (gql.skipped) skipped.push({ unit: ".", reason: gql.skipped });
+  const edges = [...rest.edges, ...gql.edges];
+  const stats = { connected: 0, "not-connected": 0, mismatched: 0, unverifiable: 0, orphan: 0 } as MapReport["stats"];
+  for (const e of edges) stats[e.status]++;
+  return { calls: [...calls, ...gql.calls], routes: [...routes, ...gql.routes], edges, findings: [...rest.findings, ...gql.findings], stats, skipped };
+}
+
+function unitOf(stack: StackReport, file: string): string {
+  const owners = stack.units.map((u) => u.dir).filter((d) => d === "." || file.startsWith(d + "/")).sort((a, b) => b.length - a.length);
+  return owners[0] ?? ".";
+}
+
+/** OpenAPI routes, proto routes, gRPC client calls and GraphQL documents found anywhere in the project. */
+function collectSchemas(root: string, stack: StackReport) {
+  const specRoutes: ServerRoute[] = [];
+  const gqlSources: GqlSource[] = [];
+  const protos: { file: string; text: string }[] = [];
+  const jsFiles: { file: string; text: string; unit: string }[] = [];
+  for (const rel of walkFiles(root)) {
+    if (TEST_FILE.test(rel)) continue;
+    const isSpec = stack.openapi.files.includes(rel) || /(^|\/)(openapi|swagger|api-?spec)[^/]*\.(json|ya?ml)$/i.test(rel);
+    const isGql = /\.(graphql|graphqls|gql)$/.test(rel);
+    const isProto = rel.endsWith(".proto");
+    const isJs = JS_GRAMMARS.includes(grammarFor(rel) ?? "");
+    if (!isSpec && !isGql && !isProto && !isJs) continue;
+    const text = readText(join(root, rel));
+    if (text === null) continue;
+    const unit = unitOf(stack, rel);
+    if (isSpec) specRoutes.push(...openApiRoutes(text, unit, rel));
+    if (isGql) gqlSources.push({ file: rel, unit, line: 1, text });
+    if (isProto) protos.push({ file: rel, text });
+    if (isJs) {
+      jsFiles.push({ file: rel, text, unit });
+      if (/\b(gql|graphql)\s*(<[^>]*>)?\s*\(?\s*`/.test(text)) gqlSources.push(...gqlTemplates(text, unit, rel));
+    }
+  }
+  const rpcs = protos.flatMap((p) => parseProto(p.text));
+  for (const p of protos) specRoutes.push(...protoRoutes(p.text, unitOf(stack, p.file), p.file));
+  const frontendDirs = new Set(stack.units.filter((u) => u.role === "frontend" || u.role === "fullstack").map((u) => u.dir));
+  const grpcCalls = rpcs.length
+    ? jsFiles.filter((f) => frontendDirs.has(f.unit)).flatMap((f) => grpcClientCalls(f.text, f.unit, f.file, rpcs))
+    : [];
+  return { specRoutes, grpcCalls, gql: classifySources(gqlSources) };
 }
 
 // Keep lineOfNode re-exported for extractor authors.
