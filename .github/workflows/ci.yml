@@ -56,4 +56,4 @@ jobs:
           SARIF: ${{ steps.iv.outputs.sarif }}
         run: |
           test "$CODE" = "1"
-          node -e 'const s=require("./"+process.env.SARIF); const n=s.runs[0].results.length; console.log(n+" results"); if (n < 10) process.exit(1)'
+          node -e 'const s=JSON.parse(require("fs").readFileSync(process.env.SARIF,"utf8")); const n=s.runs[0].results.length; console.log(n+" results"); if (n < 10) process.exit(1)'
