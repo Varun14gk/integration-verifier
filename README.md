@@ -7,7 +7,7 @@ sensitive data leaks across those boundaries.
 It **informs, it doesn't rewire**: it reports what is connected, what is not, and the likely
 correct connection, with evidence and a confidence level. You decide what to change.
 
-> Status: early development. PR 1 (skeleton) is in place; the checks arrive in the PRs below.
+> Status: early development. See the roadmap for what is done.
 
 ## Quick start
 
@@ -23,7 +23,7 @@ npm run iv -- config validate --root path/to/your/app
 
 | Command | What it does | Status |
 |---|---|---|
-| `iv detect` | Identify languages, frameworks, HTTP clients, API style → `.iv/stack.json` | PR 2 |
+| `iv detect` | Identify languages, frameworks, HTTP clients, API style → `.iv/stack.json` | ✅ |
 | `iv map` | Frontend call → route → handler graph, with fix suggestions → `.iv/map.json` | PR 3 |
 | `iv flow` | Trace request and response fields end to end | PR 4 |
 | `iv check` | Leak, secret, outbound-host and validation checks | PR 4 |
