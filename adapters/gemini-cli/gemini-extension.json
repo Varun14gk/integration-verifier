@@ -1,0 +1,13 @@
+{
+  "name": "integration-verifier",
+  "version": "0.1.0",
+  "description": "Checks that your frontend, backend and APIs are actually connected, and that no sensitive data leaks across them. Reports with evidence; never rewires your code.",
+  "mcpServers": {
+    "integration-verifier": {
+      "command": "node",
+      "args": ["${extensionPath}${/}scripts${/}iv-launch.mjs", "mcp", "--root", "${workspacePath}"],
+      "cwd": "${workspacePath}"
+    }
+  },
+  "contextFileName": "GEMINI.md"
+}

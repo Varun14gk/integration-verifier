@@ -62,7 +62,11 @@ function postWriteOutput(harness: Harness, message: string): HookOutput {
   return { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: message } }), code: 0 };
 }
 
-/** Formats "do not finish yet", per harness. */
+/**
+ * Formats "do not finish yet", per harness: Claude Code and Codex Stop hooks take
+ * `decision: "block"`; Gemini CLI's AfterAgent takes `decision: "deny"`, which rejects
+ * the response and sends `reason` back as a new prompt.
+ */
 function blockStop(harness: Harness, reason: string): HookOutput {
   if (harness === "gemini-cli") return { stdout: JSON.stringify({ decision: "deny", reason }), code: 0 };
   return { stdout: JSON.stringify({ decision: "block", reason }), code: 0 };
