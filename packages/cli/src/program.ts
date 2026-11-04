@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { Command, CommanderError } from "commander";
 import {
@@ -12,7 +13,7 @@ import {
 import { planSteps, runRuntime, RuntimeConfigError, type RuntimeReport } from "@integration-verifier/runtime";
 import { serveStdio } from "@integration-verifier/mcp";
 import { HARNESSES, runHook, type Harness } from "./hooks.js";
-import { detectHarnesses, INSTALLERS, installLauncher, type InstallOptions } from "./install.js";
+import { detectHarnesses, INSTALLERS, installGitHook, installGitHubAction, installLauncher, type InstallOptions } from "./install.js";
 
 /** Process exit codes. Hooks and CI depend on these, so keep them stable. */
 export const EXIT = {
@@ -142,15 +143,30 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     .option("-r, --root <dir>", "project root", ".")
     .option("--also <dirs...>", "extra roots, e.g. a backend in a separate repo")
     .option("--files <files...>", "only report findings in these files (fast mode for hooks)")
+    .option("--staged", "only report findings in files staged for commit (pre-commit hook)")
     .option("--no-engine", "skip checks that need Opengrep/Semgrep")
     .option("--json", "print the check report as JSON")
-    .action(async (opts: { root: string; also?: string[]; files?: string[]; engine: boolean; json?: boolean }) => {
+    .action(async (opts: { root: string; also?: string[]; files?: string[]; staged?: boolean; engine: boolean; json?: boolean }) => {
       const root = resolve(opts.root);
       const config = configOrFail(root);
       if (!config) return;
+      let files = opts.files;
+      if (opts.staged) {
+        const staged = stagedFiles(root);
+        if (staged === null) {
+          io.err("--staged needs a git repository.\n");
+          result.code = EXIT.USAGE;
+          return;
+        }
+        if (!staged.length) {
+          io.out("Integration Verifier: no staged files to check.\n");
+          return;
+        }
+        files = [...(files ?? []), ...staged];
+      }
       const { stack, map, flow, report } = await runCheck(root, config, {
         ...(opts.also ? { also: opts.also } : {}),
-        ...(opts.files ? { files: opts.files } : {}),
+        ...(files ? { files } : {}),
         ...(opts.engine ? {} : { engine: null }),
       });
       writeOutput(root, "stack", stack);
@@ -287,10 +303,12 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     .option("--claude-code", "Claude Code plugin")
     .option("--codex", "Codex plugin")
     .option("--gemini-cli", "Gemini CLI extension")
+    .option("--git-hook", "git pre-commit hook in the project at --root")
+    .option("--github-action", "GitHub Actions workflow in the project at --root")
     .option("--scope <scope>", "user (default) or project", "user")
-    .option("-r, --root <dir>", "project directory for --scope project", ".")
+    .option("-r, --root <dir>", "project directory for --scope project, --git-hook and --github-action", ".")
     .option("--dry-run", "show what would change, write nothing")
-    .action((opts: { all?: boolean; claudeCode?: boolean; codex?: boolean; geminiCli?: boolean; scope: string; root: string; dryRun?: boolean }) => {
+    .action((opts: { all?: boolean; claudeCode?: boolean; codex?: boolean; geminiCli?: boolean; gitHook?: boolean; githubAction?: boolean; scope: string; root: string; dryRun?: boolean }) => {
       if (opts.scope !== "user" && opts.scope !== "project") {
         io.err(`Unknown scope ${opts.scope}; use user or project.\n`);
         result.code = EXIT.USAGE;
@@ -303,12 +321,21 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
         ...(opts.geminiCli ? ["gemini-cli" as const] : []),
       ];
       const targets = opts.all ? [...new Set([...detectHarnesses(installOpts), ...chosen])] : chosen;
-      if (!targets.length) {
-        io.err(opts.all ? "No supported harness found (looked for ~/.claude, ~/.codex, ~/.gemini).\n" : "Choose --all or a harness (--claude-code, --codex, --gemini-cli).\n");
+      const projectInstallers = [...(opts.gitHook ? [installGitHook] : []), ...(opts.githubAction ? [installGitHubAction] : [])];
+      if (!targets.length && !projectInstallers.length) {
+        io.err(opts.all ? "No supported harness found (looked for ~/.claude, ~/.codex, ~/.gemini).\n" : "Choose --all, a harness (--claude-code, --codex, --gemini-cli), --git-hook or --github-action.\n");
         result.code = EXIT.USAGE;
         return;
       }
       const results = [installLauncher(installOpts)];
+      for (const install of projectInstallers) {
+        try {
+          results.push(install(installOpts));
+        } catch (e) {
+          io.err(`${(e as Error).message}\n`);
+          result.code = EXIT.USAGE;
+        }
+      }
       for (const h of targets) {
         const installer = INSTALLERS[h];
         if (!installer) {
@@ -418,6 +445,18 @@ export async function run(args: string[], io: Io = defaultIo): Promise<number> {
     throw e;
   }
   return result.code;
+}
+
+/** Files staged for commit (added, copied, modified, renamed), relative to `root`; null outside git. */
+function stagedFiles(root: string): string[] | null {
+  const git = (args: string[]) => spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  const top = git(["rev-parse", "--show-toplevel"]);
+  if (top.status !== 0) return null;
+  const list = git(["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"]);
+  if (list.status !== 0) return null;
+  return list.stdout.split("\0").filter(Boolean)
+    .map((f) => relative(root, join(top.stdout.trim(), f)).split(sep).join("/"))
+    .filter((f) => !f.startsWith(".."));
 }
 
 function formatRuntimeSummary(r: RuntimeReport): string {

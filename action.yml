@@ -1,0 +1,82 @@
+# Copyright 2026 The Integration Verifier Authors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Integration Verifier
+description: Check that frontend, backend and APIs are connected and that no sensitive data leaks; fail on blocking findings and write SARIF.
+author: The Integration Verifier Authors
+branding:
+  icon: link
+  color: blue
+
+inputs:
+  root:
+    description: Project root to check, relative to the workspace
+    default: "."
+  engine:
+    description: "Pattern engine for the leak checks: semgrep (installed by this action) or none"
+    default: semgrep
+  fail-on-findings:
+    description: Fail the step while findings at or above gate.failOn are open
+    default: "true"
+  sarif:
+    description: Where to write the SARIF report, relative to the workspace
+    default: integration-verifier.sarif
+
+outputs:
+  sarif:
+    description: Path of the SARIF report
+    value: ${{ steps.report.outputs.sarif }}
+  exit-code:
+    description: Exit code of iv check (0 passed, 1 blocking findings, 2 config error)
+    value: ${{ steps.check.outputs.code }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+    - name: Build Integration Verifier
+      shell: bash
+      run: cd "$GITHUB_ACTION_PATH" && npm ci --no-audit --no-fund --loglevel=error && npm run build
+    - if: inputs.engine == 'semgrep'
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+    - if: inputs.engine == 'semgrep'
+      name: Install Semgrep CE
+      shell: bash
+      run: python -m pip install --quiet semgrep
+    - id: check
+      name: iv check
+      shell: bash
+      env:
+        IV_ROOT: ${{ inputs.root }}
+        IV_ENGINE: ${{ inputs.engine }}
+      run: |
+        set +e
+        args=(check --root "$GITHUB_WORKSPACE/$IV_ROOT")
+        if [ "$IV_ENGINE" = "none" ]; then args+=(--no-engine); fi
+        node "$GITHUB_ACTION_PATH/packages/cli/dist/index.js" "${args[@]}"
+        echo "code=$?" >> "$GITHUB_OUTPUT"
+    - id: report
+      name: iv report
+      if: always()
+      shell: bash
+      env:
+        IV_ROOT: ${{ inputs.root }}
+        IV_SARIF: ${{ inputs.sarif }}
+      run: |
+        out="$RUNNER_TEMP/integration-verifier"
+        node "$GITHUB_ACTION_PATH/packages/cli/dist/index.js" report --root "$GITHUB_WORKSPACE/$IV_ROOT" --out "$out"
+        cp "$out/report.sarif" "$GITHUB_WORKSPACE/$IV_SARIF"
+        cat "$out/report.md" >> "$GITHUB_STEP_SUMMARY"
+        echo "sarif=$IV_SARIF" >> "$GITHUB_OUTPUT"
+    - if: inputs.fail-on-findings == 'true' && steps.check.outputs.code != '0'
+      name: Gate
+      shell: bash
+      env:
+        IV_CODE: ${{ steps.check.outputs.code }}
+      run: |
+        echo "::error::Integration Verifier gate failed (exit $IV_CODE). See the job summary or code scanning for the findings."
+        exit 1

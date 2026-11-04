@@ -7,7 +7,7 @@ sensitive data leaks across those boundaries.
 It **informs, it doesn't rewire**: it reports what is connected, what is not, and the likely
 correct connection, with evidence and a confidence level. You decide what to change.
 
-> Status: early development. See the roadmap for what is done.
+> Status: all ten roadmap items are implemented; pre-release (0.1.0), not yet published to npm or the harness marketplaces.
 
 ## Quick start
 
@@ -41,6 +41,23 @@ harness's own files, backing up any file it changes (`*.iv-backup`).
   Codex and trust the hooks with `/hooks`.
 - **Gemini CLI**: copies the extension to `~/.gemini/extensions/integration-verifier` (MCP server,
   `GEMINI.md` context, skill, `AfterTool` fast check and `AfterAgent` gate).
+
+## Without a coding agent: git hook and CI
+
+The same gate runs outside harnesses:
+
+```sh
+iv install --git-hook --root path/to/project      # pre-commit: iv check --staged
+iv install --github-action --root path/to/project  # .github/workflows/integration-verifier.yml
+```
+
+- **Pre-commit** blocks the commit while findings at or above `gate.failOn` are open in staged
+  files (`git commit --no-verify` skips it once). It never replaces a hook it didn't write. With
+  the [pre-commit framework](https://pre-commit.com), use the `integration-verifier` hook from
+  `.pre-commit-hooks.yaml`.
+- **GitHub Actions**: `uses: Varun14gk/integration-verifier@main` (inputs `root`, `engine`,
+  `fail-on-findings`, `sarif`). The generated workflow uploads SARIF to code scanning and writes
+  the Markdown report to the job summary.
 
 ## Pattern engine (for leak checks)
 

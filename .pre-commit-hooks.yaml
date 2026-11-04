@@ -1,0 +1,13 @@
+# Copyright 2026 The Integration Verifier Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# For the pre-commit framework (https://pre-commit.com). Needs the `iv` command on PATH
+# (for example `npm link -w integration-verifier` in a checkout of this repository).
+# Without the framework, use `iv install --git-hook` instead.
+- id: integration-verifier
+  name: Integration Verifier gate
+  description: Blocks the commit while findings at or above gate.failOn are open in staged files
+  entry: iv check --staged
+  language: system
+  pass_filenames: false
+  always_run: true

@@ -1,7 +1,8 @@
 // Copyright 2026 The Integration Verifier Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +30,7 @@ export interface FileChange {
 }
 
 export interface InstallResult {
-  harness: Harness | "launcher";
+  harness: Harness | "launcher" | "git-hook" | "github-action";
   changes: FileChange[];
   nextSteps: string[];
 }
@@ -196,6 +197,74 @@ export function installGeminiCli(opts: InstallOptions): InstallResult {
       "Restart Gemini CLI; `gemini extensions list` should show integration-verifier. Alternative: gemini extensions install <repo>/adapters/gemini-cli",
     ],
   };
+}
+
+const HOOK_MARKER = "# integration-verifier: pre-commit gate";
+
+/** Path of the pre-commit hook git will run for `projectDir` (honours core.hooksPath). */
+function preCommitPath(projectDir: string): string {
+  const r = spawnSync("git", ["rev-parse", "--path-format=absolute", "--git-path", "hooks/pre-commit"], { cwd: projectDir, encoding: "utf8" });
+  if (r.status !== 0) throw new Error(`${projectDir} is not a git repository`);
+  return r.stdout.trim();
+}
+
+/**
+ * Git pre-commit hook: runs the same gate as the harness Stop hooks, limited to
+ * findings in staged files. Never replaces a hook it did not write.
+ */
+export function installGitHook(opts: InstallOptions): InstallResult {
+  const changes: FileChange[] = [];
+  const project = resolve(opts.projectDir ?? ".");
+  const path = preCommitPath(project);
+  if (existsSync(path) && !readFileSync(path, "utf8").includes(HOOK_MARKER)) {
+    throw new Error(`${path} already exists and was not written by Integration Verifier. Add this line to it instead:\n  ${hookCommand()}`);
+  }
+  const script = `#!/bin/sh\n${HOOK_MARKER} (installed by \`iv install --git-hook\`)\n# Blocks the commit while findings at or above gate.failOn are open in staged files.\n# Skip once with: git commit --no-verify\n${hookCommand()}\n`;
+  writeFile(path, script, opts, changes, "pre-commit gate");
+  if (!opts.dryRun) chmodSync(path, 0o755);
+  return { harness: "git-hook", changes, nextSteps: ["Commits now run `iv check --staged`; `git commit --no-verify` skips it once."] };
+}
+
+function hookCommand(): string {
+  return `"${fwd(process.execPath)}" "${fwd(join(REPO_ROOT, "adapters", "shared", "iv-launch.mjs"))}" check --root "$(git rev-parse --show-toplevel)" --staged`;
+}
+
+/** GitHub Actions workflow that runs the gate on pushes and pull requests and uploads SARIF. */
+export const GITHUB_WORKFLOW = `# Integration Verifier gate (installed by \`iv install --github-action\`).
+# Runs the same checks as the editor hooks and uploads the findings to code scanning.
+name: Integration Verifier
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  integration-verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: iv
+        uses: Varun14gk/integration-verifier@main
+        with:
+          root: "."
+          engine: semgrep
+      - if: always() && steps.iv.outputs.sarif != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: \${{ steps.iv.outputs.sarif }}
+          category: integration-verifier
+`;
+
+export function installGitHubAction(opts: InstallOptions): InstallResult {
+  const changes: FileChange[] = [];
+  const path = join(resolve(opts.projectDir ?? "."), ".github", "workflows", "integration-verifier.yml");
+  writeFile(path, GITHUB_WORKFLOW, opts, changes, "CI gate with SARIF upload");
+  return { harness: "github-action", changes, nextSteps: ["Commit the workflow; findings appear under Security > Code scanning and the job fails on blocking findings."] };
 }
 
 /** Which harnesses look installed on this machine. */
