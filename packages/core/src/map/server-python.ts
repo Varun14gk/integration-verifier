@@ -4,7 +4,7 @@
 import { posix } from "node:path";
 import { lineOfNode, named, stringValue, type SyntaxNode } from "../parse/tree-sitter.js";
 import { joinPaths, normalizePath } from "./paths.js";
-import { findSinks, type FuncDef } from "./sinks.js";
+import { findSinks, hasLogging, type FuncDef } from "./sinks.js";
 import type { FieldSet, RouteQueryParam, ServerRoute } from "./types.js";
 
 export interface PyModel {
@@ -177,6 +177,7 @@ export function extractPythonRoutes(root: SyntaxNode, unit: string, file: string
           validated: params.validated,
           validationAt: { file, line: lineOfNode(def) },
           sinks: findSinks(handler, ctx.defs, storeName),
+          logs: hasLogging(handler, ctx.defs),
         });
       }
     }

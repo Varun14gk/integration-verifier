@@ -25,6 +25,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Semgrep CE (pattern engine for the leak checks)
+        run: pip install semgrep
       - run: npm ci
       - run: npm run licenses
       - run: npm test
+        env:
+          IV_REQUIRE_ENGINE: "1"

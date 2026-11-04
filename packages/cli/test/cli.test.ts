@@ -49,7 +49,30 @@ describe("iv (in process)", () => {
     expect(written.data.units[0].framework).toBe("fastapi");
   });
 
-  it.each(["flow", "check", "runtime", "report", "install"])("%s is reported as not implemented", async (cmd) => {
+  it("check fails the gate on a broken fixture, then report writes Markdown and SARIF", async () => {
+    const root = mkdtempSync(join(tmpdir(), "iv-cli-"));
+    mkdirSync(join(root, "api"));
+    writeFileSync(join(root, "api", "requirements.txt"), "fastapi\n");
+    writeFileSync(join(root, "api", "main.py"), 'from fastapi import FastAPI\napp = FastAPI()\n@app.post("/x")\ndef x(body):\n    return 1\n');
+    const io = capture();
+    expect(await run(["check", "--root", root, "--no-engine"], io)).toBe(EXIT.OK);
+    expect(io.stdout()).toContain("missing-validation");
+    writeFileSync(join(root, "api", "main.py"), 'from fastapi import FastAPI\napp = FastAPI()\nfrom pydantic import BaseModel\nclass U(BaseModel):\n    password: str\n@app.get("/u", response_model=U)\ndef u():\n    return 1\n');
+    mkdirSync(join(root, "web"));
+    writeFileSync(join(root, "web", "package.json"), JSON.stringify({ dependencies: { react: "18" } }));
+    writeFileSync(join(root, "web", "a.ts"), 'fetch("/u");\n');
+    expect(await run(["check", "--root", root, "--no-engine"], capture())).toBe(EXIT.FINDINGS);
+    const rep = capture();
+    expect(await run(["report", "--root", root], rep)).toBe(EXIT.OK);
+    expect(readFileSync(join(root, ".iv", "report.md"), "utf8")).toContain("over-exposure");
+    expect(JSON.parse(readFileSync(join(root, ".iv", "report.sarif"), "utf8")).version).toBe("2.1.0");
+  });
+
+  it("report without a previous check is a usage error", async () => {
+    expect(await run(["report", "--root", mkdtempSync(join(tmpdir(), "iv-cli-"))], capture())).toBe(EXIT.USAGE);
+  });
+
+  it.each(["runtime", "install"])("%s is reported as not implemented", async (cmd) => {
     const io = capture();
     expect(await run([cmd], io)).toBe(EXIT.NOT_IMPLEMENTED);
     expect(io.stderr()).toMatch(/not implemented yet \(planned for PR \d+\)/);
@@ -87,7 +110,7 @@ describe("iv (in process)", () => {
 describe("iv (built binary)", () => {
   it("runs from dist and sets the exit code", () => {
     expect(execFileSync(process.execPath, [BIN, "--version"], { encoding: "utf8" }).trim()).toBe(VERSION);
-    const map = spawnSync(process.execPath, [BIN, "flow"], { encoding: "utf8" });
+    const map = spawnSync(process.execPath, [BIN, "runtime"], { encoding: "utf8" });
     expect(map.status).toBe(EXIT.NOT_IMPLEMENTED);
   });
 });

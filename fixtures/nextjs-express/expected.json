@@ -139,6 +139,18 @@
       }
     },
     {
+      "id": "ne-no-request-logging",
+      "category": "missing-logging",
+      "severity": "low",
+      "phase": 2,
+      "description": "No request logging middleware or tracing, and 4 of 5 handlers write no log line.",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 13,
+        "contains": "app.get(\"/api/products\","
+      }
+    },
+    {
       "id": "ne-session-cookie",
       "category": "insecure-cookie",
       "severity": "high",

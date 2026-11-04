@@ -19,16 +19,30 @@ npm run iv -- config init --root path/to/your/app
 npm run iv -- config validate --root path/to/your/app
 ```
 
+## Pattern engine (for leak checks)
+
+Five checks (sensitive values in logs, browser storage and error responses; insecure
+cookies; hardcoded secrets) run our own rules (`packages/core/rules/iv-rules.yaml`) on a
+pattern engine **installed on your machine**. Install one:
+
+```sh
+pip install semgrep          # Semgrep CE, LGPL-2.1
+# or Opengrep: https://github.com/opengrep/opengrep#installation
+```
+
+Without an engine those checks are skipped and listed as skipped; everything else still runs.
+Set `scanner.engine` / `scanner.command` in `.iv/config.yaml` to pick one explicitly.
+
 ## Commands
 
 | Command | What it does | Status |
 |---|---|---|
 | `iv detect` | Identify languages, frameworks, HTTP clients, API style → `.iv/stack.json` | ✅ |
 | `iv map` | Frontend call → route → handler graph, with fix suggestions → `.iv/map.json` | ✅ |
-| `iv flow` | Trace request and response fields end to end | PR 4 |
-| `iv check` | Leak, secret, outbound-host and validation checks | PR 4 |
+| `iv flow` | Trace request and response fields end to end → `.iv/flow.json` | ✅ |
+| `iv check` | Map + leak, secret, outbound-host, validation and logging checks; applies the gate → `.iv/check.json` | ✅ |
 | `iv runtime` | Opt-in: verify against the running app with Playwright | PR 5 |
-| `iv report` | Markdown and SARIF reports | PR 4 |
+| `iv report` | Markdown and SARIF reports from the last check | ✅ |
 | `iv install` | Install harness adapters | PR 7 |
 | `iv config init \| validate` | Create or check `.iv/config.yaml` | ✅ |
 

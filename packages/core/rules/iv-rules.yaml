@@ -1,0 +1,217 @@
+# Copyright 2026 The Integration Verifier Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Integration Verifier's own rules for Semgrep CE / Opengrep. These rules only
+# LOCATE candidate sites (log calls, storage writes, cookies, error responses,
+# secret-like assignments). Whether a site involves a sensitive value is decided
+# afterwards by packages/core/src/check/patterns.ts, using the names configured
+# in .iv/config.yaml.
+
+rules:
+  # ---- log calls -----------------------------------------------------------
+  - id: iv-log-call-python
+    languages: [python]
+    severity: INFO
+    message: log call
+    pattern-either:
+      - pattern: print(...)
+      - patterns:
+          - pattern: $LOG.$M(...)
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^(debug|info|warning|warn|error|exception|critical|log)$
+          - metavariable-regex:
+              metavariable: $LOG
+              regex: (?i)^(self\.|app\.|current_app\.)?(_?log|_?logger|logging)$
+
+  - id: iv-log-call-js
+    languages: [javascript, typescript]
+    severity: INFO
+    message: log call
+    pattern-either:
+      - patterns:
+          - pattern: console.$M(...)
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^(log|info|warn|error|debug|trace)$
+      - patterns:
+          - pattern: $LOG.$M(...)
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^(log|info|warn|error|debug|trace|fatal|verbose)$
+          - metavariable-regex:
+              metavariable: $LOG
+              regex: (?i)^(this\.)?(_?log|_?logger|winston|pino|bunyan)$
+
+  - id: iv-log-call-java
+    languages: [java]
+    severity: INFO
+    message: log call
+    pattern-either:
+      - pattern: System.out.println(...)
+      - pattern: System.err.println(...)
+      - patterns:
+          - pattern: $LOG.$M(...)
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^(trace|debug|info|warn|error)$
+          - metavariable-regex:
+              metavariable: $LOG
+              regex: (?i)^(this\.)?(_?log|_?logger)$
+
+  - id: iv-log-call-go
+    languages: [go]
+    severity: INFO
+    message: log call
+    patterns:
+      - pattern: log.$M(...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(Print|Printf|Println|Fatal|Fatalf|Fatalln|Panic|Panicf)$
+
+  - id: iv-log-call-csharp
+    languages: [csharp]
+    severity: INFO
+    message: log call
+    pattern-either:
+      - pattern: Console.WriteLine(...)
+      - patterns:
+          - pattern: $LOG.$M(...)
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^Log(Information|Debug|Warning|Error|Critical|Trace)?$
+          - metavariable-regex:
+              metavariable: $LOG
+              regex: (?i)^_?logger$
+
+  # ---- browser storage -------------------------------------------------------
+  - id: iv-client-storage
+    languages: [javascript, typescript]
+    severity: INFO
+    message: browser storage write
+    pattern-either:
+      - pattern: localStorage.setItem(...)
+      - pattern: sessionStorage.setItem(...)
+      - pattern: window.localStorage.setItem(...)
+      - pattern: window.sessionStorage.setItem(...)
+      - pattern: localStorage[$K] = $V
+      - pattern: sessionStorage[$K] = $V
+
+  # ---- cookies ---------------------------------------------------------------
+  - id: iv-cookie-js
+    languages: [javascript, typescript]
+    severity: INFO
+    message: cookie set
+    pattern-either:
+      - pattern: document.cookie = $V
+      - patterns:
+          - pattern: $RES.cookie(...)
+          - metavariable-regex:
+              metavariable: $RES
+              regex: ^(res|response|reply)$
+
+  - id: iv-cookie-python
+    languages: [python]
+    severity: INFO
+    message: cookie set
+    pattern: $R.set_cookie(...)
+
+  # ---- error responses -------------------------------------------------------
+  - id: iv-error-response-js
+    languages: [javascript, typescript]
+    severity: INFO
+    message: error response
+    patterns:
+      - pattern-either:
+          - pattern: $RES.status($C).json(...)
+          - pattern: $RES.status($C).send(...)
+      - metavariable-regex:
+          metavariable: $C
+          regex: ^[45]\d\d$
+
+  - id: iv-error-response-python
+    languages: [python]
+    severity: INFO
+    message: error response
+    pattern-either:
+      - pattern: raise HTTPException(...)
+      - pattern: abort(...)
+
+  - id: iv-error-response-java
+    languages: [java]
+    severity: INFO
+    message: error response
+    pattern-either:
+      - pattern: ResponseEntity.status(...).body(...)
+      - pattern: ResponseEntity.badRequest().body(...)
+      - pattern: throw new ResponseStatusException(...);
+
+  # ---- hardcoded secrets -----------------------------------------------------
+  - id: iv-secret-assign-js
+    languages: [javascript, typescript]
+    severity: INFO
+    message: secret-like assignment
+    patterns:
+      - pattern-either:
+          - pattern: const $N = "..."
+          - pattern: let $N = "..."
+          - pattern: var $N = "..."
+          - pattern: $O.$N = "..."
+      - metavariable-regex:
+          metavariable: $N
+          regex: (?i).*(secret|token|api_?key|apikey|passw(or)?d|pwd|private_?key|access_?key|credential|signing_?key|auth_?key)
+
+  - id: iv-secret-assign-python
+    languages: [python]
+    severity: INFO
+    message: secret-like assignment
+    patterns:
+      - pattern: $N = "..."
+      - metavariable-regex:
+          metavariable: $N
+          regex: (?i).*(secret|token|api_?key|apikey|passw(or)?d|pwd|private_?key|access_?key|credential|signing_?key|auth_?key)
+
+  - id: iv-secret-assign-java
+    languages: [java]
+    severity: INFO
+    message: secret-like assignment
+    patterns:
+      - pattern: $T $N = "...";
+      - metavariable-regex:
+          metavariable: $N
+          regex: (?i).*(secret|token|api_?key|apikey|passw(or)?d|pwd|private_?key|access_?key|credential|signing_?key|auth_?key)
+
+  - id: iv-secret-assign-go
+    languages: [go]
+    severity: INFO
+    message: secret-like assignment
+    patterns:
+      - pattern-either:
+          - pattern: $N := "..."
+          - pattern: const $N = "..."
+      - metavariable-regex:
+          metavariable: $N
+          regex: (?i).*(secret|token|api_?key|apikey|passw(or)?d|pwd|private_?key|access_?key|credential|signing_?key|auth_?key)
+
+  - id: iv-secret-config
+    languages: [regex]
+    severity: INFO
+    message: secret-like config value
+    paths:
+      include:
+        - "*.properties"
+        - "*.yml"
+        - "*.yaml"
+        - "*.env"
+        - ".env"
+        - ".env.*"
+        - "*.ini"
+        - "*.toml"
+        - "*.cfg"
+    pattern-regex: (?im)^[ \t]*[\w.\-]*(password|passwd|secret|token|api[_-]?key|private[_-]?key|access[_-]?key)[\w.\-]*[ \t]*[:=][ \t]*\S.*$
+
+  - id: iv-secret-format
+    languages: [regex]
+    severity: INFO
+    message: known secret format
+    pattern-regex: (AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{60,}|sk_live_[0-9a-zA-Z]{24,}|xox[baprs]-[0-9A-Za-z-]{10,}|-----BEGIN (RSA |EC |OPENSSH |)PRIVATE KEY-----)

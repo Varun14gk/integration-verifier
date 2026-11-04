@@ -45,3 +45,15 @@ export function findSinks(handler: FuncDef, defs: Map<string, FuncDef>, storeNam
   }
   return sinks;
 }
+
+const LOG_RE = /\b(log|logger|_logger|LOG|LOGGER|logging|console|winston|pino)\.\w+\(|\bprint\(|\bSystem\.(out|err)\.print|\blog\.Print|\bConsole\.WriteLine|\b_?logger\.Log/;
+
+/** Whether a handler, or a function it calls, writes a log line. */
+export function hasLogging(handler: FuncDef, defs: Map<string, FuncDef>): boolean {
+  if (LOG_RE.test(handler.text)) return true;
+  for (const m of handler.text.matchAll(CALL_RE)) {
+    const def = defs.get(m[1]!);
+    if (def && def.text !== handler.text && LOG_RE.test(def.text)) return true;
+  }
+  return false;
+}

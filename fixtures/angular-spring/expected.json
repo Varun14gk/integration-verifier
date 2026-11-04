@@ -201,6 +201,18 @@
       }
     },
     {
+      "id": "as-no-request-logging",
+      "category": "missing-logging",
+      "severity": "low",
+      "phase": 2,
+      "description": "No request logging or tracing is configured, and 5 of 6 handlers write no log line.",
+      "evidence": {
+        "file": "backend/src/main/java/com/example/shop/CustomerController.java",
+        "line": 12,
+        "contains": "@GetMapping(\"/api/customers/{id}\")"
+      }
+    },
+    {
       "id": "as-db-password",
       "category": "hardcoded-secret",
       "severity": "critical",
