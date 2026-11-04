@@ -84,7 +84,8 @@ function closest(name: string, candidates: string[]): string | null {
   let best: string | null = null;
   let score = 0.5;
   for (const c of candidates) {
-    const s = c.includes(name) || name.includes(c) ? 0.8 : stringSimilarity(name.toLowerCase(), c.toLowerCase());
+    const [n, k] = [name.toLowerCase(), c.toLowerCase()];
+    const s = k.includes(n) || n.includes(k) ? 0.8 : stringSimilarity(n, k);
     if (s > score) {
       score = s;
       best = c;

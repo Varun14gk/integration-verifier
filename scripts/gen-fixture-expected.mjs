@@ -110,6 +110,40 @@ const fixtures = {
       { category: "over-exposure", at: ["backend/src/server.js", 'app.get("/api/products",'], reason: "supplierCost is unused by the UI but is not a sensitive field." },
     ],
   },
+
+  "schema-first": {
+    description: "React frontend (fetch, Apollo, Connect) against a Scala backend that Integration Verifier does not analyse: every check comes from openapi.yaml, schema.graphql and users.proto.",
+    stack: {
+      frontend: { dir: "frontend", language: "typescript", framework: "react", httpClient: "apollo-client", packageManager: "npm" },
+      backend: { dir: "backend", language: "scala", framework: null, unsupported: true, schemas: ["backend/openapi.yaml", "backend/schema.graphql", "backend/proto/users.proto"] },
+      apiStyle: "rest+graphql+grpc",
+      joins: [],
+      dataStores: [],
+      outbound: [],
+    },
+    connected: [
+      { method: "GET", path: "/api/v1/users", frontend: ["frontend/src/rest.ts", "fetch(`/api/v1/users?limit="], backend: ["backend/openapi.yaml", "  /users:"] },
+      { method: "GET", path: "/api/v1/users/{}", frontend: ["frontend/src/rest.ts", "fetch(`/api/v1/users/${userId}`)"], backend: ["backend/openapi.yaml", "  /users/{userId}:"] },
+      { method: "QUERY", path: "graphql:Query.user", frontend: ["frontend/src/queries.ts", "query GetUser"], backend: ["backend/schema.graphql", "user(id: ID!): User"] },
+      { method: "MUTATION", path: "graphql:Mutation.renameUser", frontend: ["frontend/src/queries.ts", "mutation RenameUser"], backend: ["backend/schema.graphql", "renameUser(id: ID!"] },
+      { method: "POST", path: "/shop.v1.UserService/GetUser", frontend: ["frontend/src/rpc.ts", "users.getUser("], backend: ["backend/proto/users.proto", "rpc GetUser("] },
+    ],
+    planted: [
+      { id: "sf-rest-field", category: "mismatched", severity: "high", phase: 1, at: ["frontend/src/rest.ts", 'fetch("/api/v1/users", { method: "POST"'], related: [["backend/openapi.yaml", "required: [displayName, email]"]], description: "Body sends `name`; the OpenAPI UserCreate schema requires `displayName`." },
+      { id: "sf-rest-path", category: "not-connected", severity: "high", phase: 1, at: ["frontend/src/rest.ts", "fetch(`/api/v1/user/${userId}`"], related: [["backend/openapi.yaml", "  /users/{userId}:"]], description: "DELETE /api/v1/user/{id} is not in the spec (singular `user`).", suggestion: "DELETE /api/v1/users/{userId}" },
+      { id: "sf-rest-orphan", category: "orphan", severity: "low", phase: 1, at: ["backend/openapi.yaml", "  /reports/export:"], description: "GET /api/v1/reports/export is in the spec but no frontend calls it." },
+      { id: "sf-gql-field", category: "mismatched", severity: "high", phase: 1, at: ["frontend/src/queries.ts", "displayname\n"], description: "ListUsers selects `displayname`; the schema has `displayName`." },
+      { id: "sf-gql-root", category: "not-connected", severity: "high", phase: 1, at: ["frontend/src/queries.ts", "    stats {"], description: "Query.stats does not exist in the schema." },
+      { id: "sf-gql-orphan", category: "orphan", severity: "low", phase: 1, at: ["backend/schema.graphql", "auditLog: [AuditEvent!]!"], description: "Query.auditLog is not used by any frontend operation." },
+      { id: "sf-grpc-unknown", category: "not-connected", severity: "high", phase: 1, at: ["frontend/src/rpc.ts", "users.archiveUser("], description: "UserService has no ArchiveUser rpc." },
+      { id: "sf-grpc-orphan", category: "orphan", severity: "low", phase: 1, at: ["backend/proto/users.proto", "rpc ExportAuditTrail("], description: "ExportAuditTrail is not called by the frontend." },
+      { id: "sf-overexposed-password-hash", category: "over-exposure", severity: "high", phase: 2, at: ["backend/openapi.yaml", "passwordHash: { type: string }"], description: "The User schema returns passwordHash; the UI never reads it." },
+    ],
+    mustNotReport: [
+      { category: "over-exposure", at: ["backend/openapi.yaml", "        email: { type: string }\n        passwordHash"], reason: "email is shown by Profile.tsx." },
+      { category: "orphan", at: ["backend/proto/users.proto", "rpc ListUsers("], reason: "Called by loadAll in rpc.ts." },
+    ],
+  },
 };
 
 function locate(fixture, [file, contains]) {

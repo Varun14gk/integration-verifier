@@ -1,0 +1,75 @@
+# Test fixture: deliberately broken sample app. Do not use as a reference.
+openapi: 3.1.0
+info:
+  title: Users API
+  version: 1.0.0
+servers:
+  - url: https://api.example.test/api/v1
+paths:
+  /users:
+    get:
+      operationId: listUsers
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
+    post:
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+  /users/{userId}:
+    get:
+      operationId: getUser
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+    delete:
+      operationId: deleteUser
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted }
+  /reports/export:
+    get:
+      operationId: exportReports
+      responses:
+        "200": { description: CSV }
+components:
+  schemas:
+    UserCreate:
+      type: object
+      required: [displayName, email]
+      properties:
+        displayName: { type: string }
+        email: { type: string }
+    User:
+      type: object
+      required: [id, displayName, email]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        email: { type: string }
+        passwordHash: { type: string }

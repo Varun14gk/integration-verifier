@@ -86,7 +86,7 @@ export function detectStack(roots: string[]): StackReport {
       if (MANIFESTS.includes(name) || name.endsWith(".csproj")) {
         manifestDirs.set(dir, [...(manifestDirs.get(dir) ?? []), name]);
       } else if (name in UNSUPPORTED_MANIFESTS) {
-        unsupported.push({ dir: rel(primary, join(root, dir)), reason: `${UNSUPPORTED_MANIFESTS[name]} projects are not supported yet (${name})` });
+        unsupported.push({ dir: rel(primary, join(root, dir)), reason: `${UNSUPPORTED_MANIFESTS[name]} code is not analysed yet (${name}); OpenAPI, GraphQL and .proto schemas and runtime checks still apply` });
       }
       if (/(^|\/)(openapi|swagger)[^/]*\.(json|ya?ml)$/i.test(f)) ctx.openapiFiles.add(rel(primary, join(root, f)));
     }

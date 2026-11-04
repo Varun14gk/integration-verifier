@@ -101,8 +101,11 @@ export function classifyMatch(m: PatternMatch, snippet: string, config: Config):
     }
     case "iv-secret-config": {
       const kv = /^\s*([\w.\-]+)\s*[:=]\s*(.*)$/.exec(snippet);
-      const value = (kv?.[2] ?? "").trim().replace(/^["']|["']$/g, "");
-      if (!kv || !looksLikeSecret(value)) return null;
+      const raw = (kv?.[2] ?? "").trim();
+      // YAML/JSON structure (`{ type: string }`, `[a, b]`, anchors, block scalars) is not a value.
+      if (!kv || /^[{[&*|>!]/.test(raw)) return null;
+      const value = raw.replace(/\s+#.*$/, "").replace(/^["']|["']$/g, "");
+      if (!looksLikeSecret(value)) return null;
       return {
         id: at("hardcoded-secret"), category: "hardcoded-secret", severity: "critical",
         evidence: evidence(m.file, m.line, `${kv[1]}=${mask(value)}`),

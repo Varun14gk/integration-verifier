@@ -1,0 +1,246 @@
+{
+  "$comment": "Ground truth for this fixture. Every line number is checked by tests/fixtures.test.ts.",
+  "fixture": "schema-first",
+  "description": "React frontend (fetch, Apollo, Connect) against a Scala backend that Integration Verifier does not analyse: every check comes from openapi.yaml, schema.graphql and users.proto.",
+  "stack": {
+    "frontend": {
+      "dir": "frontend",
+      "language": "typescript",
+      "framework": "react",
+      "httpClient": "apollo-client",
+      "packageManager": "npm"
+    },
+    "backend": {
+      "dir": "backend",
+      "language": "scala",
+      "framework": null,
+      "unsupported": true,
+      "schemas": [
+        "backend/openapi.yaml",
+        "backend/schema.graphql",
+        "backend/proto/users.proto"
+      ]
+    },
+    "apiStyle": "rest+graphql+grpc",
+    "joins": [],
+    "dataStores": [],
+    "outbound": []
+  },
+  "connected": [
+    {
+      "method": "GET",
+      "path": "/api/v1/users",
+      "frontend": {
+        "file": "frontend/src/rest.ts",
+        "line": 12,
+        "contains": "fetch(`/api/v1/users?limit="
+      },
+      "backend": {
+        "file": "backend/openapi.yaml",
+        "line": 9,
+        "contains": "  /users:"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/{}",
+      "frontend": {
+        "file": "frontend/src/rest.ts",
+        "line": 17,
+        "contains": "fetch(`/api/v1/users/${userId}`)"
+      },
+      "backend": {
+        "file": "backend/openapi.yaml",
+        "line": 38,
+        "contains": "  /users/{userId}:"
+      }
+    },
+    {
+      "method": "QUERY",
+      "path": "graphql:Query.user",
+      "frontend": {
+        "file": "frontend/src/queries.ts",
+        "line": 8,
+        "contains": "query GetUser"
+      },
+      "backend": {
+        "file": "backend/schema.graphql",
+        "line": 3,
+        "contains": "user(id: ID!): User"
+      }
+    },
+    {
+      "method": "MUTATION",
+      "path": "graphql:Mutation.renameUser",
+      "frontend": {
+        "file": "frontend/src/queries.ts",
+        "line": 27,
+        "contains": "mutation RenameUser"
+      },
+      "backend": {
+        "file": "backend/schema.graphql",
+        "line": 9,
+        "contains": "renameUser(id: ID!"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/shop.v1.UserService/GetUser",
+      "frontend": {
+        "file": "frontend/src/rpc.ts",
+        "line": 12,
+        "contains": "users.getUser("
+      },
+      "backend": {
+        "file": "backend/proto/users.proto",
+        "line": 15,
+        "contains": "rpc GetUser("
+      }
+    }
+  ],
+  "planted": [
+    {
+      "id": "sf-rest-field",
+      "category": "mismatched",
+      "severity": "high",
+      "phase": 1,
+      "description": "Body sends `name`; the OpenAPI UserCreate schema requires `displayName`.",
+      "evidence": {
+        "file": "frontend/src/rest.ts",
+        "line": 22,
+        "contains": "fetch(\"/api/v1/users\", { method: \"POST\""
+      },
+      "related": [
+        {
+          "file": "backend/openapi.yaml",
+          "line": 64,
+          "contains": "required: [displayName, email]"
+        }
+      ]
+    },
+    {
+      "id": "sf-rest-path",
+      "category": "not-connected",
+      "severity": "high",
+      "phase": 1,
+      "description": "DELETE /api/v1/user/{id} is not in the spec (singular `user`).",
+      "suggestion": "DELETE /api/v1/users/{userId}",
+      "evidence": {
+        "file": "frontend/src/rest.ts",
+        "line": 27,
+        "contains": "fetch(`/api/v1/user/${userId}`"
+      },
+      "related": [
+        {
+          "file": "backend/openapi.yaml",
+          "line": 38,
+          "contains": "  /users/{userId}:"
+        }
+      ]
+    },
+    {
+      "id": "sf-rest-orphan",
+      "category": "orphan",
+      "severity": "low",
+      "phase": 1,
+      "description": "GET /api/v1/reports/export is in the spec but no frontend calls it.",
+      "evidence": {
+        "file": "backend/openapi.yaml",
+        "line": 55,
+        "contains": "  /reports/export:"
+      }
+    },
+    {
+      "id": "sf-gql-field",
+      "category": "mismatched",
+      "severity": "high",
+      "phase": 1,
+      "description": "ListUsers selects `displayname`; the schema has `displayName`.",
+      "evidence": {
+        "file": "frontend/src/queries.ts",
+        "line": 21,
+        "contains": "displayname"
+      }
+    },
+    {
+      "id": "sf-gql-root",
+      "category": "not-connected",
+      "severity": "high",
+      "phase": 1,
+      "description": "Query.stats does not exist in the schema.",
+      "evidence": {
+        "file": "frontend/src/queries.ts",
+        "line": 36,
+        "contains": "    stats {"
+      }
+    },
+    {
+      "id": "sf-gql-orphan",
+      "category": "orphan",
+      "severity": "low",
+      "phase": 1,
+      "description": "Query.auditLog is not used by any frontend operation.",
+      "evidence": {
+        "file": "backend/schema.graphql",
+        "line": 5,
+        "contains": "auditLog: [AuditEvent!]!"
+      }
+    },
+    {
+      "id": "sf-grpc-unknown",
+      "category": "not-connected",
+      "severity": "high",
+      "phase": 1,
+      "description": "UserService has no ArchiveUser rpc.",
+      "evidence": {
+        "file": "frontend/src/rpc.ts",
+        "line": 20,
+        "contains": "users.archiveUser("
+      }
+    },
+    {
+      "id": "sf-grpc-orphan",
+      "category": "orphan",
+      "severity": "low",
+      "phase": 1,
+      "description": "ExportAuditTrail is not called by the frontend.",
+      "evidence": {
+        "file": "backend/proto/users.proto",
+        "line": 17,
+        "contains": "rpc ExportAuditTrail("
+      }
+    },
+    {
+      "id": "sf-overexposed-password-hash",
+      "category": "over-exposure",
+      "severity": "high",
+      "phase": 2,
+      "description": "The User schema returns passwordHash; the UI never reads it.",
+      "evidence": {
+        "file": "backend/openapi.yaml",
+        "line": 75,
+        "contains": "passwordHash: { type: string }"
+      }
+    }
+  ],
+  "mustNotReport": [
+    {
+      "category": "over-exposure",
+      "evidence": {
+        "file": "backend/openapi.yaml",
+        "line": 74,
+        "contains": "        email: { type: string }"
+      },
+      "reason": "email is shown by Profile.tsx."
+    },
+    {
+      "category": "orphan",
+      "evidence": {
+        "file": "backend/proto/users.proto",
+        "line": 16,
+        "contains": "rpc ListUsers("
+      },
+      "reason": "Called by loadAll in rpc.ts."
+    }
+  ]
+}
