@@ -37,3 +37,23 @@ jobs:
       - run: npm test
         env:
           IV_REQUIRE_ENGINE: "1"
+
+  # Runs this repository's own GitHub Action the way a user project would.
+  action-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: iv
+        uses: ./
+        with:
+          root: fixtures/react-fastapi
+          engine: semgrep
+          fail-on-findings: "false"
+          sarif: iv.sarif
+      - name: The gate fails on the broken fixture and SARIF lists the findings
+        env:
+          CODE: ${{ steps.iv.outputs.exit-code }}
+          SARIF: ${{ steps.iv.outputs.sarif }}
+        run: |
+          test "$CODE" = "1"
+          node -e 'const s=JSON.parse(require("fs").readFileSync(process.env.SARIF,"utf8")); const n=s.runs[0].results.length; console.log(n+" results"); if (n < 10) process.exit(1)'
