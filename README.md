@@ -19,6 +19,24 @@ npm run iv -- config init --root path/to/your/app
 npm run iv -- config validate --root path/to/your/app
 ```
 
+## Install into your coding agent
+
+```sh
+git clone https://github.com/Varun14gk/integration-verifier && cd integration-verifier
+npm ci && npm run build
+node packages/cli/dist/index.js install --all      # or --claude-code / --codex / --gemini-cli; --dry-run first if you like
+```
+
+`iv install` records where the CLI lives (`~/.integration-verifier/cli.json`) and writes each
+harness's own files, backing up any file it changes (`*.iv-backup`).
+
+- **Claude Code**: registers this repo as a plugin marketplace and enables the
+  `integration-verifier` plugin. You can also add it from inside Claude Code with
+  `/plugin marketplace add Varun14gk/integration-verifier` and
+  `/plugin install integration-verifier@integration-verifier` (the CLI must still be installed as
+  above). The plugin adds a skill, the MCP tools, a fast check after every file write and the full
+  gate before Claude finishes.
+
 ## Pattern engine (for leak checks)
 
 Five checks (sensitive values in logs, browser storage and error responses; insecure

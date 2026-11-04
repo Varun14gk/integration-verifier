@@ -72,10 +72,15 @@ describe("iv (in process)", () => {
     expect(await run(["report", "--root", mkdtempSync(join(tmpdir(), "iv-cli-"))], capture())).toBe(EXIT.USAGE);
   });
 
-  it.each(["install"])("%s is reported as not implemented", async (cmd) => {
-    const io = capture();
-    expect(await run([cmd], io)).toBe(EXIT.NOT_IMPLEMENTED);
-    expect(io.stderr()).toMatch(/not implemented yet \(planned for PR \d+\)/);
+  it("install needs a harness, and hook needs a known harness and event", async () => {
+    expect(await run(["install"], capture())).toBe(EXIT.USAGE);
+    expect(await run(["hook", "vim", "stop"], capture())).toBe(EXIT.USAGE);
+  });
+
+  it("dismiss records a reason", async () => {
+    const root = mkdtempSync(join(tmpdir(), "iv-cli-"));
+    expect(await run(["dismiss", "orphan:a.py:1", "--reason", "used by cron", "--root", root], capture())).toBe(EXIT.OK);
+    expect(readFileSync(join(root, ".iv", "config.yaml"), "utf8")).toContain("used by cron");
   });
 
   it("returns a usage error for an unknown command", async () => {
@@ -110,7 +115,7 @@ describe("iv (in process)", () => {
 describe("iv (built binary)", () => {
   it("runs from dist and sets the exit code", () => {
     expect(execFileSync(process.execPath, [BIN, "--version"], { encoding: "utf8" }).trim()).toBe(VERSION);
-    const map = spawnSync(process.execPath, [BIN, "install"], { encoding: "utf8" });
-    expect(map.status).toBe(EXIT.NOT_IMPLEMENTED);
+    const install = spawnSync(process.execPath, [BIN, "install"], { encoding: "utf8" });
+    expect(install.status).toBe(EXIT.USAGE);
   });
 });
