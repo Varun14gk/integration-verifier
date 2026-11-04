@@ -1,7 +1,12 @@
 node_modules/
 dist/
 coverage/
-.iv/
+*.tsbuildinfo
 *.log
 .env
 .env.*
+!fixtures/**/.env.example
+
+# iv output files are generated; the config is meant to be committed
+**/.iv/*
+!**/.iv/config.yaml

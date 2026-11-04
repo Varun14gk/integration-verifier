@@ -1,0 +1,227 @@
+{
+  "$comment": "Ground truth for this fixture. Every line number is checked by tests/fixtures.test.ts.",
+  "fixture": "angular-spring",
+  "description": "Angular (HttpClient) frontend, Spring Boot backend.",
+  "stack": {
+    "frontend": {
+      "dir": "frontend",
+      "language": "typescript",
+      "framework": "angular",
+      "httpClient": "angular-httpclient",
+      "packageManager": "npm"
+    },
+    "backend": {
+      "dir": "backend",
+      "language": "java",
+      "framework": "spring-boot",
+      "schema": "java-dto",
+      "packageManager": "maven"
+    },
+    "apiStyle": "rest",
+    "joins": [
+      {
+        "kind": "dev-proxy",
+        "from": "/api",
+        "to": "http://localhost:8080",
+        "file": "frontend/proxy.conf.json"
+      }
+    ],
+    "dataStores": [
+      "postgresql"
+    ],
+    "outbound": []
+  },
+  "connected": [
+    {
+      "method": "GET",
+      "path": "/api/orders/{}",
+      "frontend": {
+        "file": "frontend/src/app/services/order.service.ts",
+        "line": 31,
+        "contains": "this.http.get<Order>(`/api/orders/${id}`)"
+      },
+      "backend": {
+        "file": "backend/src/main/java/com/example/shop/OrderController.java",
+        "line": 22,
+        "contains": "@GetMapping(\"/{id}\")"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/orders",
+      "frontend": {
+        "file": "frontend/src/app/services/order.service.ts",
+        "line": 35,
+        "contains": "this.http.post<Order>(\"/api/orders\", order)"
+      },
+      "backend": {
+        "file": "backend/src/main/java/com/example/shop/OrderController.java",
+        "line": 27,
+        "contains": "@PostMapping"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/customers/{}",
+      "frontend": {
+        "file": "frontend/src/app/services/customer.service.ts",
+        "line": 19,
+        "contains": "/api/customers/${id}"
+      },
+      "backend": {
+        "file": "backend/src/main/java/com/example/shop/CustomerController.java",
+        "line": 12,
+        "contains": "@GetMapping(\"/api/customers/{id}\")"
+      }
+    }
+  ],
+  "planted": [
+    {
+      "id": "as-query-params",
+      "category": "mismatched",
+      "severity": "high",
+      "phase": 1,
+      "description": "Frontend sends page/size; backend requires pageNumber/pageSize.",
+      "suggestion": "Send pageNumber and pageSize.",
+      "evidence": {
+        "file": "frontend/src/app/services/order.service.ts",
+        "line": 27,
+        "contains": "params: { page, size }"
+      },
+      "related": [
+        {
+          "file": "backend/src/main/java/com/example/shop/OrderController.java",
+          "line": 18,
+          "contains": "@RequestParam int pageNumber"
+        }
+      ]
+    },
+    {
+      "id": "as-path-param-missing",
+      "category": "mismatched",
+      "severity": "high",
+      "phase": 1,
+      "description": "Backend route needs {itemId}; frontend omits it.",
+      "suggestion": "DELETE /api/orders/{orderId}/items/{itemId}",
+      "evidence": {
+        "file": "frontend/src/app/services/order.service.ts",
+        "line": 39,
+        "contains": "/api/orders/${orderId}/items`"
+      },
+      "related": [
+        {
+          "file": "backend/src/main/java/com/example/shop/OrderController.java",
+          "line": 33,
+          "contains": "@DeleteMapping(\"/{orderId}/items/{itemId}\")"
+        }
+      ]
+    },
+    {
+      "id": "as-orphan-export",
+      "category": "orphan",
+      "severity": "low",
+      "phase": 1,
+      "description": "GET /api/orders/export is not called by the frontend.",
+      "evidence": {
+        "file": "backend/src/main/java/com/example/shop/OrderController.java",
+        "line": 37,
+        "contains": "@GetMapping(\"/export\")"
+      }
+    },
+    {
+      "id": "as-no-valid",
+      "category": "missing-validation",
+      "severity": "medium",
+      "phase": 2,
+      "description": "@RequestBody without @Valid, and the DTO has no constraints.",
+      "evidence": {
+        "file": "backend/src/main/java/com/example/shop/OrderController.java",
+        "line": 28,
+        "contains": "@RequestBody CreateOrderRequest request"
+      }
+    },
+    {
+      "id": "as-email-logged",
+      "category": "sensitive-in-logs",
+      "severity": "medium",
+      "phase": 2,
+      "description": "Customer email written to the log.",
+      "evidence": {
+        "file": "backend/src/main/java/com/example/shop/OrderController.java",
+        "line": 29,
+        "contains": "log.info(\"Order placed by"
+      }
+    },
+    {
+      "id": "as-overexposed-national-id",
+      "category": "over-exposure",
+      "severity": "high",
+      "phase": 2,
+      "description": "Customer.nationalId returned; the UI only uses name.",
+      "evidence": {
+        "file": "backend/src/main/java/com/example/shop/Customer.java",
+        "line": 11,
+        "contains": "public String nationalId;"
+      }
+    },
+    {
+      "id": "as-overexposed-email",
+      "category": "over-exposure",
+      "severity": "medium",
+      "phase": 2,
+      "description": "Customer.email returned; the UI only uses name.",
+      "evidence": {
+        "file": "backend/src/main/java/com/example/shop/Customer.java",
+        "line": 10,
+        "contains": "public String email;"
+      }
+    },
+    {
+      "id": "as-email-sessionstorage",
+      "category": "sensitive-in-client-storage",
+      "severity": "medium",
+      "phase": 2,
+      "description": "Email stored in sessionStorage.",
+      "evidence": {
+        "file": "frontend/src/app/services/customer.service.ts",
+        "line": 23,
+        "contains": "sessionStorage.setItem(\"customer_email\""
+      }
+    },
+    {
+      "id": "as-cookie-no-flags",
+      "category": "insecure-cookie",
+      "severity": "low",
+      "phase": 2,
+      "description": "Cookie set without Secure/SameSite.",
+      "evidence": {
+        "file": "frontend/src/app/services/customer.service.ts",
+        "line": 24,
+        "contains": "document.cookie ="
+      }
+    },
+    {
+      "id": "as-db-password",
+      "category": "hardcoded-secret",
+      "severity": "critical",
+      "phase": 2,
+      "description": "Database password committed in application.properties.",
+      "evidence": {
+        "file": "backend/src/main/resources/application.properties",
+        "line": 4,
+        "contains": "spring.datasource.password="
+      }
+    }
+  ],
+  "mustNotReport": [
+    {
+      "category": "over-exposure",
+      "evidence": {
+        "file": "backend/src/main/java/com/example/shop/Customer.java",
+        "line": 9,
+        "contains": "public String name;"
+      },
+      "reason": "name is shown by CustomerCardComponent."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "integration-verifier",
+  "version": "0.1.0",
+  "description": "Checks that a frontend, backend and APIs are connected correctly and that no data leaks across them",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "iv": "dist/index.js"
+  },
+  "main": "dist/program.js",
+  "types": "dist/program.d.ts",
+  "files": ["dist"],
+  "dependencies": {
+    "@integration-verifier/core": "0.1.0",
+    "commander": "15.0.0"
+  }
+}

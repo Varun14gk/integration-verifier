@@ -1,0 +1,20 @@
+{
+  "name": "@integration-verifier/core",
+  "version": "0.1.0",
+  "description": "Detection, mapping, data-flow and leak-check engine for Integration Verifier",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  }
+}
