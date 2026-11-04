@@ -3,7 +3,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { Command, CommanderError } from "commander";
 import {
@@ -449,14 +449,11 @@ export async function run(args: string[], io: Io = defaultIo): Promise<number> {
 
 /** Files staged for commit (added, copied, modified, renamed), relative to `root`; null outside git. */
 function stagedFiles(root: string): string[] | null {
-  const git = (args: string[]) => spawnSync("git", args, { cwd: root, encoding: "utf8" });
-  const top = git(["rev-parse", "--show-toplevel"]);
-  if (top.status !== 0) return null;
-  const list = git(["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"]);
+  // `--relative` makes git print paths relative to `root` itself, so no path arithmetic is
+  // needed (Windows short names such as RUNNER~1 would break a comparison with the toplevel).
+  const list = spawnSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR", "--relative", "-z"], { cwd: root, encoding: "utf8" });
   if (list.status !== 0) return null;
-  return list.stdout.split("\0").filter(Boolean)
-    .map((f) => relative(root, join(top.stdout.trim(), f)).split(sep).join("/"))
-    .filter((f) => !f.startsWith(".."));
+  return list.stdout.split("\0").filter(Boolean);
 }
 
 function formatRuntimeSummary(r: RuntimeReport): string {
