@@ -1,10 +1,21 @@
 {
   "name": "@integration-verifier/mcp",
   "version": "0.1.0",
-  "description": "MCP server exposing Integration Verifier commands as tools (implemented in PR 6)",
+  "description": "MCP server exposing Integration Verifier commands as tools",
   "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@integration-verifier/core": "0.1.0",
+    "@integration-verifier/runtime": "0.1.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "zod": "4.6.7"
+  },
+  "bin": {
+    "iv-mcp": "dist/index.js"
+  }
 }

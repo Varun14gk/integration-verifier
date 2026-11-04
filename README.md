@@ -63,6 +63,14 @@ console, Web Storage, cookies, URLs, other responses or **the server's own log o
 Needs a browser once: `npx playwright install chromium`. Schemathesis (`pip install
 schemathesis`) is optional.
 
+## MCP server
+
+`iv mcp` (or `node packages/mcp/dist/index.js`) serves the same commands as MCP tools over
+stdio: `iv_detect`, `iv_map`, `iv_flow`, `iv_check`, `iv_report`, `iv_runtime_plan`,
+`iv_runtime` and `iv_dismiss`. `iv_runtime` only runs the steps passed in `approvedSteps`, so
+an agent has to show the plan to the user first. `iv_dismiss` records the user's reason in
+`.iv/config.yaml`. No tool edits application code.
+
 ## Commands
 
 | Command | What it does | Status |
@@ -75,6 +83,8 @@ schemathesis`) is optional.
 | `iv report` | Markdown and SARIF reports from the last check (and runtime run) | ✅ |
 | `iv install` | Install harness adapters | PR 7 |
 | `iv config init \| validate` | Create or check `.iv/config.yaml` | ✅ |
+| `iv dismiss <id> --reason …` | Accept a finding, with the reason recorded in config | ✅ |
+| `iv mcp` | Serve the tools over MCP (stdio) | ✅ |
 
 Exit codes: `0` OK, `1` findings at or above the gate severity, `2` usage or config error,
 `3` not implemented yet.
