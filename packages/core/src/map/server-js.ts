@@ -4,7 +4,7 @@
 import { posix } from "node:path";
 import { lineOfNode, named, stringValue, type SyntaxNode } from "../parse/tree-sitter.js";
 import { joinPaths, normalizePath } from "./paths.js";
-import { findSinks, type FuncDef } from "./sinks.js";
+import { findSinks, hasLogging, type FuncDef } from "./sinks.js";
 import { fieldsFromTypeText, type TypeIndex } from "./ts-types.js";
 import type { FieldSet, RouteQueryParam, ServerRoute } from "./types.js";
 
@@ -228,6 +228,7 @@ export function extractExpressRoutes(root: SyntaxNode, unit: string, file: strin
         validated: hasInput ? schemaCheck || validatedByMiddleware : null,
         validationAt: { file, line: lineOfNode(call) },
         sinks: findSinks({ file, line: lineOfNode(call), text: fnText }, ctx.defs, storeName),
+        logs: fnText ? hasLogging({ file, line: lineOfNode(call), text: fnText }, ctx.defs) : null,
       });
     }
   }
@@ -297,6 +298,7 @@ export function extractNestRoutes(root: SyntaxNode, unit: string, file: string, 
         validated,
         validationAt: { file, line: lineOfNode(member) },
         sinks: findSinks({ file, line: lineOfNode(member), text: member.text }, ctx.defs, storeName),
+        logs: hasLogging({ file, line: lineOfNode(member), text: member.text }, ctx.defs),
       });
     }
   }

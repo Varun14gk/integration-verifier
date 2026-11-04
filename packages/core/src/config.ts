@@ -65,6 +65,8 @@ export const ConfigSchema = z.strictObject({
     .strictObject({
       /** Pattern engine installed on the user's machine. `auto` picks whichever is found. */
       engine: z.enum(["auto", "opengrep", "semgrep", "none"]).default("auto"),
+      /** Path to the engine binary, when it is not on PATH. */
+      command: z.string().optional(),
     })
     .default({ engine: "auto" }),
   runtime: z

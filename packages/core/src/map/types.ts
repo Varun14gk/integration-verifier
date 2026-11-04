@@ -74,6 +74,8 @@ export interface ServerRoute {
   /** Where the evidence for `validated` is (the handler or the body parameter). */
   validationAt?: { file: string; line: number };
   sinks: Sink[];
+  /** Whether the handler (or a function it calls) writes a log line; null when unknown. */
+  logs?: boolean | null;
 }
 
 export type EdgeStatus = "connected" | "not-connected" | "mismatched" | "unverifiable" | "orphan";

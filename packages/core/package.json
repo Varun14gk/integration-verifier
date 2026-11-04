@@ -13,7 +13,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "rules"
   ],
   "dependencies": {
     "@vscode/tree-sitter-wasm": "0.3.1",

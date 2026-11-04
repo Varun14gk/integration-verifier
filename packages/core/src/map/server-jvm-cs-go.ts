@@ -3,7 +3,7 @@
 
 import { lineOfNode, named, stringValue, type SyntaxNode } from "../parse/tree-sitter.js";
 import { joinPaths, normalizePath } from "./paths.js";
-import { findSinks, type FuncDef } from "./sinks.js";
+import { findSinks, hasLogging, type FuncDef } from "./sinks.js";
 import type { FieldSet, RouteQueryParam, ServerRoute } from "./types.js";
 
 /** A Java or C# class (or record) reduced to its fields. */
@@ -167,6 +167,7 @@ export function extractSpringRoutes(root: SyntaxNode, unit: string, file: string
         validated,
         validationAt: { file, line: validationLine },
         sinks: findSinks({ file, line: lineOfNode(m), text: m.text }, defs, storeName),
+        logs: hasLogging({ file, line: lineOfNode(m), text: m.text }, defs),
       });
     }
   }

@@ -1,11 +1,12 @@
 // Copyright 2026 The Integration Verifier Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { Command, CommanderError } from "commander";
 import {
-  applyGate, buildMap, CONFIG_TEMPLATE, configPath, detectStack, formatMapSummary, formatStackSummary, loadConfig, VERSION, writeOutput,
+  applyGate, buildFlow, buildMap, CONFIG_TEMPLATE, configPath, detectStack, formatCheckSummary, formatFlowSummary, formatMapSummary,
+  formatStackSummary, indexUi, IV_DIR, loadConfig, runCheck, toMarkdown, toSarif, VERSION, writeOutput, type CheckReport, type Config,
 } from "@integration-verifier/core";
 
 /** Process exit codes. Hooks and CI depend on these, so keep them stable. */
@@ -31,10 +32,7 @@ const defaultIo: Io = {
 
 /** Commands from the spec that later PRs fill in. */
 const PLANNED: { name: string; summary: string; pr: number }[] = [
-  { name: "flow", summary: "trace request and response fields end to end", pr: 4 },
-  { name: "check", summary: "run data-leak and validation checks", pr: 4 },
   { name: "runtime", summary: "opt-in: verify against the running app with Playwright", pr: 5 },
-  { name: "report", summary: "write Markdown and SARIF reports from the latest results", pr: 4 },
   { name: "install", summary: "install harness adapters (Claude Code, Codex, Gemini CLI)", pr: 7 },
 ];
 
@@ -95,6 +93,88 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
         io.out(`Wrote ${path}\n`);
       }
       if (!gate.passed) result.code = EXIT.FINDINGS;
+    });
+
+  const configOrFail = (root: string): Config | null => {
+    const loaded = loadConfig(root);
+    if (loaded.ok) return loaded.config;
+    io.err(`Invalid config: ${loaded.source}. Run "iv config validate" for details.\n`);
+    result.code = EXIT.USAGE;
+    return null;
+  };
+
+  program
+    .command("flow")
+    .description("trace request and response fields end to end (.iv/flow.json)")
+    .option("-r, --root <dir>", "project root", ".")
+    .option("--also <dirs...>", "extra roots, e.g. a backend in a separate repo")
+    .option("--json", "print the flow as JSON instead of a summary")
+    .action(async (opts: { root: string; also?: string[]; json?: boolean }) => {
+      const root = resolve(opts.root);
+      const config = configOrFail(root);
+      if (!config) return;
+      const stack = detectStack([root, ...(opts.also ?? []).map((d) => resolve(d))]);
+      const map = await buildMap(root, { stack });
+      const flow = buildFlow(map, indexUi(root, stack), config);
+      const path = writeOutput(root, "flow", flow);
+      io.out(opts.json ? JSON.stringify(flow, null, 2) + "\n" : formatFlowSummary(flow) + `Wrote ${path}\n`);
+    });
+
+  program
+    .command("check")
+    .description("run the integration map and all leak checks, then apply the gate (.iv/check.json)")
+    .option("-r, --root <dir>", "project root", ".")
+    .option("--also <dirs...>", "extra roots, e.g. a backend in a separate repo")
+    .option("--files <files...>", "only report findings in these files (fast mode for hooks)")
+    .option("--no-engine", "skip checks that need Opengrep/Semgrep")
+    .option("--json", "print the check report as JSON")
+    .action(async (opts: { root: string; also?: string[]; files?: string[]; engine: boolean; json?: boolean }) => {
+      const root = resolve(opts.root);
+      const config = configOrFail(root);
+      if (!config) return;
+      const { stack, map, flow, report } = await runCheck(root, config, {
+        ...(opts.also ? { also: opts.also } : {}),
+        ...(opts.files ? { files: opts.files } : {}),
+        ...(opts.engine ? {} : { engine: null }),
+      });
+      writeOutput(root, "stack", stack);
+      writeOutput(root, "map", map);
+      writeOutput(root, "flow", flow);
+      const path = writeOutput(root, "check", report);
+      io.out(opts.json ? JSON.stringify(report, null, 2) + "\n" : formatCheckSummary(report) + `Wrote ${path}\n`);
+      if (!report.gate.passed) result.code = EXIT.FINDINGS;
+    });
+
+  program
+    .command("report")
+    .description("write Markdown and SARIF reports from the last `iv check`")
+    .option("-r, --root <dir>", "project root", ".")
+    .option("-f, --format <format>", "md, sarif or all", "all")
+    .option("-o, --out <dir>", "output folder (default: .iv/)")
+    .action((opts: { root: string; format: string; out?: string }) => {
+      const root = resolve(opts.root);
+      const src = join(root, IV_DIR, "check.json");
+      if (!existsSync(src)) {
+        io.err(`No ${src}. Run "iv check" first.\n`);
+        result.code = EXIT.USAGE;
+        return;
+      }
+      if (!["md", "sarif", "all"].includes(opts.format)) {
+        io.err(`Unknown format ${opts.format}; use md, sarif or all.\n`);
+        result.code = EXIT.USAGE;
+        return;
+      }
+      const report = (JSON.parse(readFileSync(src, "utf8")) as { data: CheckReport }).data;
+      const outDir = resolve(opts.out ?? join(root, IV_DIR));
+      mkdirSync(outDir, { recursive: true });
+      if (opts.format !== "sarif") {
+        writeFileSync(join(outDir, "report.md"), toMarkdown(report), "utf8");
+        io.out(`Wrote ${join(outDir, "report.md")}\n`);
+      }
+      if (opts.format !== "md") {
+        writeFileSync(join(outDir, "report.sarif"), JSON.stringify(toSarif(report), null, 2) + "\n", "utf8");
+        io.out(`Wrote ${join(outDir, "report.sarif")}\n`);
+      }
     });
 
   for (const planned of PLANNED) {
