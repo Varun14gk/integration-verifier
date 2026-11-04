@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { Command, CommanderError } from "commander";
-import { CONFIG_TEMPLATE, configPath, loadConfig, VERSION } from "@integration-verifier/core";
+import { CONFIG_TEMPLATE, configPath, detectStack, formatStackSummary, loadConfig, VERSION, writeOutput } from "@integration-verifier/core";
 
 /** Process exit codes. Hooks and CI depend on these, so keep them stable. */
 export const EXIT = {
@@ -29,7 +29,6 @@ const defaultIo: Io = {
 
 /** Commands from the spec that later PRs fill in. */
 const PLANNED: { name: string; summary: string; pr: number }[] = [
-  { name: "detect", summary: "identify the stack and write .iv/stack.json", pr: 2 },
   { name: "map", summary: "build the frontend-to-backend integration map (.iv/map.json)", pr: 3 },
   { name: "flow", summary: "trace request and response fields end to end", pr: 4 },
   { name: "check", summary: "run data-leak and validation checks", pr: 4 },
@@ -50,6 +49,24 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     .configureOutput({ writeOut: io.out, writeErr: io.err })
     .exitOverride()
     .showHelpAfterError();
+
+  program
+    .command("detect")
+    .description("identify the stack and write .iv/stack.json")
+    .option("-r, --root <dir>", "project root", ".")
+    .option("--also <dirs...>", "extra roots, e.g. a backend in a separate repo")
+    .option("--json", "print the report as JSON instead of a summary")
+    .action((opts: { root: string; also?: string[]; json?: boolean }) => {
+      const root = resolve(opts.root);
+      const report = detectStack([root, ...(opts.also ?? []).map((d) => resolve(d))]);
+      const path = writeOutput(root, "stack", report);
+      if (opts.json) {
+        io.out(JSON.stringify(report, null, 2) + "\n");
+      } else {
+        io.out(formatStackSummary(report));
+        io.out(`Wrote ${path}\n`);
+      }
+    });
 
   for (const planned of PLANNED) {
     program

@@ -5,3 +5,5 @@ export * from "./version.js";
 export * from "./finding.js";
 export * from "./config.js";
 export * from "./output.js";
+export * from "./fs-walk.js";
+export * from "./detect/index.js";
