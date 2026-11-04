@@ -1,0 +1,252 @@
+{
+  "$comment": "Ground truth for this fixture. Every line number is checked by tests/fixtures.test.ts.",
+  "fixture": "react-fastapi",
+  "description": "React (Vite + axios) frontend, FastAPI backend.",
+  "stack": {
+    "frontend": {
+      "dir": "frontend",
+      "language": "typescript",
+      "framework": "react",
+      "bundler": "vite",
+      "httpClient": "axios",
+      "packageManager": "npm"
+    },
+    "backend": {
+      "dir": "backend",
+      "language": "python",
+      "framework": "fastapi",
+      "schema": "pydantic",
+      "packageManager": "pip"
+    },
+    "apiStyle": "rest",
+    "joins": [
+      {
+        "kind": "env",
+        "name": "VITE_API_URL",
+        "file": "frontend/.env.example"
+      },
+      {
+        "kind": "dev-proxy",
+        "from": "/api",
+        "to": "http://localhost:8000",
+        "file": "frontend/vite.config.ts"
+      }
+    ],
+    "dataStores": [
+      "sqlite"
+    ],
+    "outbound": [
+      "mailer.untrusted-relay.example"
+    ]
+  },
+  "connected": [
+    {
+      "method": "GET",
+      "path": "/api/users",
+      "frontend": {
+        "file": "frontend/src/api/users.ts",
+        "line": 20,
+        "contains": "api.get<User[]>(\"/api/users\")"
+      },
+      "backend": {
+        "file": "backend/app/routes/users.py",
+        "line": 13,
+        "contains": "@router.get(\"\", response_model=list[UserOut])"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/{}",
+      "frontend": {
+        "file": "frontend/src/api/users.ts",
+        "line": 25,
+        "contains": "api.get<User>(`/api/users/${id}`)"
+      },
+      "backend": {
+        "file": "backend/app/routes/users.py",
+        "line": 18,
+        "contains": "@router.get(\"/{user_id}\""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "frontend": {
+        "file": "frontend/src/api/auth.ts",
+        "line": 8,
+        "contains": "\"/api/auth/login\""
+      },
+      "backend": {
+        "file": "backend/app/routes/auth.py",
+        "line": 16,
+        "contains": "@router.post(\"/login\""
+      }
+    }
+  ],
+  "planted": [
+    {
+      "id": "rf-request-field-renamed",
+      "category": "mismatched",
+      "severity": "high",
+      "phase": 1,
+      "description": "Frontend sends `name`; backend UserCreate requires `full_name`.",
+      "suggestion": "Rename the body field to full_name (or accept name on the backend).",
+      "evidence": {
+        "file": "frontend/src/api/users.ts",
+        "line": 30,
+        "contains": "api.post<User>(\"/api/users\""
+      },
+      "related": [
+        {
+          "file": "backend/app/models.py",
+          "line": 9,
+          "contains": "full_name: str"
+        }
+      ]
+    },
+    {
+      "id": "rf-method-mismatch",
+      "category": "mismatched",
+      "severity": "high",
+      "phase": 1,
+      "description": "Frontend uses PUT /api/users/{id}; backend only exposes PATCH.",
+      "suggestion": "PATCH /api/users/{user_id}",
+      "evidence": {
+        "file": "frontend/src/api/users.ts",
+        "line": 35,
+        "contains": "api.put<User>"
+      },
+      "related": [
+        {
+          "file": "backend/app/routes/users.py",
+          "line": 29,
+          "contains": "@router.patch(\"/{user_id}\""
+        }
+      ]
+    },
+    {
+      "id": "rf-wrong-path",
+      "category": "not-connected",
+      "severity": "high",
+      "phase": 1,
+      "description": "DELETE /api/user/{id} does not exist (singular `user`).",
+      "suggestion": "DELETE /api/users/{user_id}",
+      "evidence": {
+        "file": "frontend/src/api/users.ts",
+        "line": 40,
+        "contains": "api.delete(`/api/user/${id}`)"
+      },
+      "related": [
+        {
+          "file": "backend/app/routes/users.py",
+          "line": 34,
+          "contains": "@router.delete(\"/{user_id}\")"
+        }
+      ]
+    },
+    {
+      "id": "rf-orphan-export",
+      "category": "orphan",
+      "severity": "low",
+      "phase": 1,
+      "description": "GET /api/users/export/all is not called by the frontend.",
+      "evidence": {
+        "file": "backend/app/routes/users.py",
+        "line": 39,
+        "contains": "@router.get(\"/export/all\")"
+      }
+    },
+    {
+      "id": "rf-overexposed-password-hash",
+      "category": "over-exposure",
+      "severity": "high",
+      "phase": 2,
+      "description": "UserOut returns password_hash; the UI only uses id, name, email.",
+      "evidence": {
+        "file": "backend/app/models.py",
+        "line": 23,
+        "contains": "password_hash: str"
+      }
+    },
+    {
+      "id": "rf-token-localstorage",
+      "category": "sensitive-in-client-storage",
+      "severity": "high",
+      "phase": 2,
+      "description": "Access token stored in localStorage (readable by any script on the page).",
+      "evidence": {
+        "file": "frontend/src/api/auth.ts",
+        "line": 9,
+        "contains": "localStorage.setItem(\"access_token\""
+      }
+    },
+    {
+      "id": "rf-password-logged",
+      "category": "sensitive-in-logs",
+      "severity": "critical",
+      "phase": 2,
+      "description": "Plain-text password written to the log.",
+      "evidence": {
+        "file": "backend/app/routes/auth.py",
+        "line": 18,
+        "contains": "log.info(f\"login attempt"
+      }
+    },
+    {
+      "id": "rf-email-in-url",
+      "category": "sensitive-in-url",
+      "severity": "medium",
+      "phase": 2,
+      "description": "Email address sent in the query string.",
+      "evidence": {
+        "file": "frontend/src/api/auth.ts",
+        "line": 13,
+        "contains": "/api/auth/reset?email="
+      }
+    },
+    {
+      "id": "rf-outbound-unlisted",
+      "category": "outbound-not-allowlisted",
+      "severity": "high",
+      "phase": 2,
+      "description": "Backend sends user email to a host not on the allowlist.",
+      "evidence": {
+        "file": "backend/app/routes/auth.py",
+        "line": 24,
+        "contains": "https://mailer.untrusted-relay.example/send"
+      }
+    },
+    {
+      "id": "rf-no-validation-reset",
+      "category": "missing-validation",
+      "severity": "medium",
+      "phase": 2,
+      "description": "`email` parameter has no type or model, so FastAPI does not validate it.",
+      "evidence": {
+        "file": "backend/app/routes/auth.py",
+        "line": 23,
+        "contains": "def reset_password(email):"
+      }
+    }
+  ],
+  "mustNotReport": [
+    {
+      "category": "orphan",
+      "evidence": {
+        "file": "backend/app/routes/auth.py",
+        "line": 22,
+        "contains": "@router.get(\"/reset\")"
+      },
+      "reason": "Called by resetPassword in frontend/src/api/auth.ts."
+    },
+    {
+      "category": "over-exposure",
+      "evidence": {
+        "file": "backend/app/models.py",
+        "line": 22,
+        "contains": "    email: str"
+      },
+      "reason": "email is displayed by UserList.tsx."
+    }
+  ]
+}

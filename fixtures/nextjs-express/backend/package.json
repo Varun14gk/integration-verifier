@@ -1,0 +1,12 @@
+{
+  "name": "fixture-nextjs-express-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "zod": "^3.23.0"
+  }
+}

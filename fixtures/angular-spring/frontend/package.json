@@ -1,0 +1,17 @@
+{
+  "name": "fixture-angular-spring-frontend",
+  "private": true,
+  "scripts": {
+    "start": "ng serve --proxy-config proxy.conf.json"
+  },
+  "dependencies": {
+    "@angular/common": "^18.2.0",
+    "@angular/core": "^18.2.0",
+    "@angular/platform-browser": "^18.2.0",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@angular/cli": "^18.2.0",
+    "typescript": "~5.5.0"
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "$comment": "Ground truth for this fixture. Every line number is checked by tests/fixtures.test.ts.",
+  "fixture": "nextjs-express",
+  "description": "Next.js (fetch, rewrites) frontend, Express backend.",
+  "stack": {
+    "frontend": {
+      "dir": "frontend",
+      "language": "typescript",
+      "framework": "nextjs",
+      "httpClient": "fetch",
+      "packageManager": "npm"
+    },
+    "backend": {
+      "dir": "backend",
+      "language": "javascript",
+      "framework": "express",
+      "schema": "zod",
+      "packageManager": "npm"
+    },
+    "apiStyle": "rest",
+    "joins": [
+      {
+        "kind": "nextjs-rewrite",
+        "from": "/api/:path*",
+        "to": "http://localhost:4000/:path*",
+        "file": "frontend/next.config.js"
+      }
+    ],
+    "dataStores": [],
+    "outbound": [
+      "payments.example.com",
+      "collect.analytics.example"
+    ]
+  },
+  "connected": [],
+  "planted": [
+    {
+      "id": "ne-broken-rewrite",
+      "category": "not-connected",
+      "severity": "critical",
+      "phase": 1,
+      "description": "Rewrite strips /api, so /api/products reaches the backend as /products, which does not exist. Every frontend call is affected.",
+      "suggestion": "destination: http://localhost:4000/api/:path*",
+      "evidence": {
+        "file": "frontend/next.config.js",
+        "line": 9,
+        "contains": "destination: \"http://localhost:4000/:path*\""
+      },
+      "related": [
+        {
+          "file": "backend/src/server.js",
+          "line": 13,
+          "contains": "app.get(\"/api/products\","
+        }
+      ]
+    },
+    {
+      "id": "ne-dynamic-url",
+      "category": "unverifiable",
+      "severity": "info",
+      "phase": 1,
+      "description": "URL built from a variable resource name.",
+      "evidence": {
+        "file": "frontend/lib/api.ts",
+        "line": 22,
+        "contains": "fetch(`/api/${resource}/${id}`)"
+      }
+    },
+    {
+      "id": "ne-orphan-health",
+      "category": "orphan",
+      "severity": "info",
+      "phase": 1,
+      "description": "GET /api/health is not called by the frontend (expected for health checks).",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 40,
+        "contains": "app.get(\"/api/health\""
+      }
+    },
+    {
+      "id": "ne-hardcoded-key",
+      "category": "hardcoded-secret",
+      "severity": "critical",
+      "phase": 2,
+      "description": "Secret key hardcoded in frontend code that is shipped to browsers.",
+      "evidence": {
+        "file": "frontend/lib/analytics.ts",
+        "line": 6,
+        "contains": "const ANALYTICS_SECRET_KEY ="
+      }
+    },
+    {
+      "id": "ne-outbound-analytics",
+      "category": "outbound-not-allowlisted",
+      "severity": "medium",
+      "phase": 2,
+      "description": "Call to a host not on the allowlist.",
+      "evidence": {
+        "file": "frontend/lib/analytics.ts",
+        "line": 9,
+        "contains": "https://collect.analytics.example/v1/events"
+      }
+    },
+    {
+      "id": "ne-card-logged",
+      "category": "sensitive-in-logs",
+      "severity": "critical",
+      "phase": 2,
+      "description": "Card number written to the log.",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 23,
+        "contains": "console.log(\"charging card\""
+      }
+    },
+    {
+      "id": "ne-orders-no-validation",
+      "category": "missing-validation",
+      "severity": "high",
+      "phase": 2,
+      "description": "req.body used without a schema; /api/login shows the project already uses zod.",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 21,
+        "contains": "app.post(\"/api/orders\""
+      }
+    },
+    {
+      "id": "ne-password-in-error",
+      "category": "sensitive-in-error",
+      "severity": "high",
+      "phase": 2,
+      "description": "Error response echoes the submitted email and password.",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 34,
+        "contains": "Invalid login for"
+      }
+    },
+    {
+      "id": "ne-session-cookie",
+      "category": "insecure-cookie",
+      "severity": "high",
+      "phase": 2,
+      "description": "Session cookie set without httpOnly, secure or sameSite.",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 36,
+        "contains": "res.cookie(\"session\""
+      }
+    }
+  ],
+  "mustNotReport": [
+    {
+      "category": "outbound-not-allowlisted",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 24,
+        "contains": "https://payments.example.com/charge"
+      },
+      "reason": "payments.example.com is on the allowlist."
+    },
+    {
+      "category": "missing-validation",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 31,
+        "contains": "app.post(\"/api/login\""
+      },
+      "reason": "Validated with LoginBody (zod)."
+    },
+    {
+      "category": "over-exposure",
+      "evidence": {
+        "file": "backend/src/server.js",
+        "line": 13,
+        "contains": "app.get(\"/api/products\","
+      },
+      "reason": "supplierCost is unused by the UI but is not a sensitive field."
+    }
+  ]
+}
