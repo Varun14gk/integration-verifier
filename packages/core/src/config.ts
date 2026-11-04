@@ -1,8 +1,8 @@
 // Copyright 2026 The Integration Verifier Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { parseDocument } from "yaml";
 import { z } from "zod";
 import { SeveritySchema } from "./finding.js";
@@ -140,6 +140,38 @@ export function loadConfig(root: string): LoadConfigResult {
     return { ok: true, config: ConfigSchema.parse({}), source: null };
   }
   return parseConfig(readFileSync(path, "utf8"), path);
+}
+
+export interface NewDismissal {
+  findingId: string;
+  reason: string;
+  by?: string;
+}
+
+/**
+ * Records a dismissal in `.iv/config.yaml` (creating it from the template if needed),
+ * keeping the file's comments. Returns the config path. Throws if the result is invalid.
+ */
+export function addDismissal(root: string, d: NewDismissal): string {
+  if (!d.reason.trim()) throw new Error("A dismissal needs a reason.");
+  const path = configPath(root);
+  const doc = parseDocument(existsSync(path) ? readFileSync(path, "utf8") : CONFIG_TEMPLATE);
+  const entry = { findingId: d.findingId, reason: d.reason.trim(), ...(d.by ? { by: d.by } : {}), date: new Date().toISOString().slice(0, 10) };
+  const list = doc.get("dismissals");
+  if (list && typeof list === "object" && "items" in list) {
+    const items = (list as { items: { get?: (k: string) => unknown }[] }).items;
+    const idx = items.findIndex((i) => i.get?.("findingId") === d.findingId);
+    if (idx >= 0) doc.setIn(["dismissals", idx], doc.createNode(entry));
+    else doc.addIn(["dismissals"], doc.createNode(entry));
+  } else {
+    doc.set("dismissals", doc.createNode([entry]));
+  }
+  const text = doc.toString();
+  const check = parseConfig(text, path);
+  if (!check.ok) throw new Error(`Dismissal would make the config invalid: ${check.issues.map((i) => i.message).join("; ")}`);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, text, "utf8");
+  return path;
 }
 
 /** Built-in and user patterns combined, minus nothing: `ignore` is applied per field name. */

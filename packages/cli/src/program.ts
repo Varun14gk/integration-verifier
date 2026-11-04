@@ -6,10 +6,11 @@ import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { Command, CommanderError } from "commander";
 import {
-  applyGate, buildFlow, buildMap, CONFIG_TEMPLATE, configPath, detectStack, formatCheckSummary, formatFlowSummary, formatMapSummary,
+  addDismissal, applyGate, buildFlow, buildMap, CONFIG_TEMPLATE, configPath, detectStack, formatCheckSummary, formatFlowSummary, formatMapSummary,
   formatStackSummary, indexUi, IV_DIR, loadConfig, runCheck, toMarkdown, toSarif, VERSION, writeOutput, type CheckReport, type Config,
 } from "@integration-verifier/core";
 import { planSteps, runRuntime, RuntimeConfigError, type RuntimeReport } from "@integration-verifier/runtime";
+import { serveStdio } from "@integration-verifier/mcp";
 
 /** Process exit codes. Hooks and CI depend on these, so keep them stable. */
 export const EXIT = {
@@ -250,6 +251,33 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
       const path = writeOutput(root, "runtime", report);
       io.out(formatRuntimeSummary(report) + `Wrote ${path}\n`);
       if (!report.gate.passed) result.code = EXIT.FINDINGS;
+    });
+
+  program
+    .command("dismiss")
+    .description("record that a finding is accepted, with a reason, in .iv/config.yaml")
+    .argument("<findingId>", "finding id, as shown by iv check")
+    .requiredOption("--reason <text>", "why it is acceptable")
+    .option("--by <name>", "who decided")
+    .option("-r, --root <dir>", "project root", ".")
+    .action((findingId: string, opts: { reason: string; by?: string; root: string }) => {
+      try {
+        const path = addDismissal(resolve(opts.root), { findingId, reason: opts.reason, ...(opts.by ? { by: opts.by } : {}) });
+        io.out(`Dismissed ${findingId} in ${path}\n`);
+      } catch (e) {
+        io.err(`${(e as Error).message}\n`);
+        result.code = EXIT.USAGE;
+      }
+    });
+
+  program
+    .command("mcp")
+    .description("serve the iv tools over MCP (stdio) for coding agents")
+    .option("-r, --root <dir>", "default project root for tool calls", ".")
+    .action(async (opts: { root: string }) => {
+      await serveStdio(resolve(opts.root));
+      // Keep running until the client closes stdin.
+      await new Promise<void>((done) => process.stdin.on("close", () => done()));
     });
 
   for (const planned of PLANNED) {

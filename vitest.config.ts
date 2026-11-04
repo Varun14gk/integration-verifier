@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@integration-verifier/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
+      "@integration-verifier/mcp": fileURLToPath(new URL("./packages/mcp/src/server.ts", import.meta.url)),
       "@integration-verifier/runtime": fileURLToPath(new URL("./packages/runtime/src/index.ts", import.meta.url)),
     },
   },
