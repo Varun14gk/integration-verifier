@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "integration-verifier": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./scripts/iv-launch.mjs", "mcp"]
+    }
+  }
+}

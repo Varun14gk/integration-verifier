@@ -36,6 +36,9 @@ harness's own files, backing up any file it changes (`*.iv-backup`).
   `/plugin install integration-verifier@integration-verifier` (the CLI must still be installed as
   above). The plugin adds a skill, the MCP tools, a fast check after every file write and the full
   gate before Claude finishes.
+- **Codex**: installs the plugin into `~/.codex/plugins/integration-verifier`, lists it in the
+  personal marketplace, enables it in `config.toml` and adds a pointer to `AGENTS.md`. Restart
+  Codex and trust the hooks with `/hooks`.
 
 ## Pattern engine (for leak checks)
 

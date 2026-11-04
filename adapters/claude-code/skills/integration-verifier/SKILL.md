@@ -23,6 +23,9 @@ user decides anything that needs their judgment.
 
 ## How to work with it
 
+0. Pass the project directory as `root` to every tool, unless the server was already started
+   for this project.
+
 1. After changing API calls, routes or models, run `iv_check` (with `files` for speed) and fix
    real problems the way the codebase would. A suggestion is a starting point, not an order:
    check the evidence (file:line) first, and prefer fixing the side that is wrong.
