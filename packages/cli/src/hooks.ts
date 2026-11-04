@@ -14,7 +14,7 @@ interface HookInput {
   cwd?: string;
   hook_event_name?: string;
   tool_name?: string;
-  tool_input?: { file_path?: string; path?: string; absolute_path?: string; filePath?: string };
+  tool_input?: { file_path?: string; path?: string; absolute_path?: string; filePath?: string; command?: string | string[] };
   stop_hook_active?: boolean;
 }
 
@@ -44,14 +44,20 @@ function isWebProject(root: string): boolean {
   return detectStack([root]).units.some((u) => u.role !== "unknown");
 }
 
-function filePathOf(input: HookInput): string | null {
+/** Files a write touched: a path field, or every file named in a Codex `apply_patch`. */
+export function filesOf(input: HookInput): string[] {
   const t = input.tool_input ?? {};
-  return t.file_path ?? t.absolute_path ?? t.filePath ?? t.path ?? null;
+  const direct = t.file_path ?? t.absolute_path ?? t.filePath ?? t.path;
+  if (direct) return [direct];
+  const patch = typeof t.command === "string" ? t.command : Array.isArray(t.command) ? t.command.join("\n") : "";
+  return [...patch.matchAll(/^\*\*\* (?:Add|Update) File: (.+)$|^\*\*\* Move to: (.+)$/gm)].map((m) => (m[1] ?? m[2])!.trim());
 }
 
-/** Formats feedback for the agent after a file write, per harness. */
+/**
+ * Formats feedback for the agent after a file write, per harness. Claude Code and
+ * Codex share the PostToolUse `additionalContext` shape (Codex docs, hooks page).
+ */
 function postWriteOutput(harness: Harness, message: string): HookOutput {
-  if (harness === "claude-code") return { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: message } }), code: 0 };
   if (harness === "gemini-cli") return { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: "AfterTool", additionalContext: message } }), code: 0 };
   return { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: message } }), code: 0 };
 }
@@ -86,14 +92,14 @@ export async function runHook(harness: Harness, event: HookEvent, rawInput: stri
     if (!isWebProject(root)) return { stdout: "", code: 0 };
 
     if (event === "post-write") {
-      const file = filePathOf(input);
-      if (!file) return { stdout: "", code: 0 };
-      const rel = toPosix(relative(root, isAbsolute(file) ? file : join(root, file)));
-      if (rel.startsWith("..") || rel.startsWith(`${IV_DIR}/`) || !SOURCE_FILE.test(rel)) return { stdout: "", code: 0 };
-      const { report } = await runCheck(root, loaded.config, { files: [rel], engine: null });
+      const rels = filesOf(input)
+        .map((file) => toPosix(relative(root, isAbsolute(file) ? file : join(root, file))))
+        .filter((rel) => !rel.startsWith("..") && !rel.startsWith(`${IV_DIR}/`) && SOURCE_FILE.test(rel));
+      if (!rels.length) return { stdout: "", code: 0 };
+      const { report } = await runCheck(root, loaded.config, { files: rels, engine: null });
       const relevant = report.gate.open.filter((f) => f.severity !== "info");
       if (!relevant.length) return { stdout: "", code: 0 };
-      return postWriteOutput(harness, `Integration Verifier (fast check of ${rel}, informational, nothing was changed):\n${list(relevant)}`);
+      return postWriteOutput(harness, `Integration Verifier (fast check of ${rels.join(", ")}, informational, nothing was changed):\n${list(relevant)}`);
     }
 
     // stop: the full gate.

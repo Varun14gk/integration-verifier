@@ -1,0 +1,18 @@
+{
+  "name": "integration-verifier",
+  "version": "0.1.0",
+  "description": "Checks that your frontend, backend and APIs are actually connected, and that no sensitive data leaks across them. Reports with evidence; never rewires your code.",
+  "author": { "name": "The Integration Verifier Authors", "url": "https://github.com/Varun14gk/integration-verifier" },
+  "homepage": "https://github.com/Varun14gk/integration-verifier",
+  "repository": "https://github.com/Varun14gk/integration-verifier",
+  "license": "Apache-2.0",
+  "keywords": ["integration", "api", "frontend", "backend", "security", "data-leaks", "contract"],
+  "skills": "./skills/",
+  "mcpServers": "./mcp.json",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Integration Verifier",
+    "shortDescription": "Verify frontend-backend integration and data leaks",
+    "longDescription": "Maps every frontend call to the backend route it reaches, flags broken or mismatched connections with ranked suggestions, and finds sensitive data leaking through responses, logs, URLs, browser storage and error messages. It only reports; you decide what to change."
+  }
+}
