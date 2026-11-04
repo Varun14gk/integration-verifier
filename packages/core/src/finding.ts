@@ -51,7 +51,16 @@ export const RequestEvidenceSchema = z.object({
   captureId: z.string().optional(),
 });
 
-export const EvidenceSchema = z.discriminatedUnion("kind", [CodeEvidenceSchema, RequestEvidenceSchema]);
+/** Evidence from runtime verification that is not a request: console, storage, cookies, server output. */
+export const ObservationEvidenceSchema = z.object({
+  kind: z.literal("observation"),
+  source: z.enum(["console", "local-storage", "session-storage", "cookie", "server-output", "response"]),
+  /** Page URL or process name where it was observed. */
+  location: z.string().min(1),
+  detail: z.string().optional(),
+});
+
+export const EvidenceSchema = z.discriminatedUnion("kind", [CodeEvidenceSchema, RequestEvidenceSchema, ObservationEvidenceSchema]);
 export type Evidence = z.infer<typeof EvidenceSchema>;
 
 export const FindingSchema = z.object({

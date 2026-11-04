@@ -30,7 +30,9 @@ const CATEGORY_TITLE: Record<string, string> = {
 
 function where(f: Finding): string {
   const e = f.evidence[0]!;
-  return e.kind === "code" ? `${e.file}:${e.line}` : `${e.method} ${e.url}${e.status ? ` (${e.status})` : ""}`;
+  if (e.kind === "code") return `${e.file}:${e.line}`;
+  if (e.kind === "request") return `${e.method} ${e.url}${e.status ? ` (${e.status})` : ""}`;
+  return `${e.source} @ ${e.location}`;
 }
 
 function esc(s: string): string {
@@ -53,7 +55,9 @@ export function toMarkdown(r: CheckReport, generatedAt = new Date()): string {
     if (f.suggestedFix) out.push(`**Suggested fix:** ${f.suggestedFix}`, "");
     if (f.evidence.length > 1) {
       out.push("Evidence:");
-      for (const e of f.evidence) out.push(`- ${e.kind === "code" ? `\`${e.file}:${e.line}\`${e.snippet ? `: \`${esc(e.snippet)}\`` : ""}` : `${e.method} ${e.url}`}`);
+      for (const e of f.evidence) {
+        out.push(`- ${e.kind === "code" ? `\`${e.file}:${e.line}\`${e.snippet ? `: \`${esc(e.snippet)}\`` : ""}` : e.kind === "request" ? `${e.method} ${e.url}${e.status ? ` (${e.status})` : ""}` : `${e.source} @ ${e.location}${e.detail ? `: ${esc(e.detail)}` : ""}`}`);
+      }
       out.push("");
     }
   }

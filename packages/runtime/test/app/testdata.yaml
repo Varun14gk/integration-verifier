@@ -1,0 +1,7 @@
+# Test data for `iv runtime`. Values are typed into matching form fields; sensitive
+# ones must never show up in logs, URLs, storage or other responses.
+fields:
+  email: runtime.tester@example.com
+  password: Iv-Test-Pa55word!
+submitForms: true
+maxPages: 5

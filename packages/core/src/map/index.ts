@@ -20,7 +20,7 @@ import type { ClientCall, MapReport, ServerRoute } from "./types.js";
 
 export * from "./types.js";
 export { normalizePath, pathSimilarity } from "./paths.js";
-export { compareFields, rankSuggestions } from "./match.js";
+export { buildTransforms, compareFields, rankSuggestions } from "./match.js";
 export { fieldsFromTypeText, collectTsTypes, type TypeDecl, type TypeIndex } from "./ts-types.js";
 export { formatMapSummary } from "./summary.js";
 

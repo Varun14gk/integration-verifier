@@ -1,0 +1,10 @@
+version: 1
+runtime:
+  backend:
+    command: node server.js
+    cwd: api
+    url: http://127.0.0.1:47123/
+    readyTimeoutMs: 20000
+  testData: testdata.yaml
+  playwrightTests:
+    cwd: web

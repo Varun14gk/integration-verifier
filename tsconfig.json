@@ -1,9 +1,17 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/core" },
-    { "path": "packages/runtime" },
-    { "path": "packages/mcp" },
-    { "path": "packages/cli" }
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/runtime"
+    },
+    {
+      "path": "packages/mcp"
+    },
+    {
+      "path": "packages/cli"
+    }
   ]
 }

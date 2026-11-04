@@ -72,7 +72,7 @@ describe("iv (in process)", () => {
     expect(await run(["report", "--root", mkdtempSync(join(tmpdir(), "iv-cli-"))], capture())).toBe(EXIT.USAGE);
   });
 
-  it.each(["runtime", "install"])("%s is reported as not implemented", async (cmd) => {
+  it.each(["install"])("%s is reported as not implemented", async (cmd) => {
     const io = capture();
     expect(await run([cmd], io)).toBe(EXIT.NOT_IMPLEMENTED);
     expect(io.stderr()).toMatch(/not implemented yet \(planned for PR \d+\)/);
@@ -110,7 +110,7 @@ describe("iv (in process)", () => {
 describe("iv (built binary)", () => {
   it("runs from dist and sets the exit code", () => {
     expect(execFileSync(process.execPath, [BIN, "--version"], { encoding: "utf8" }).trim()).toBe(VERSION);
-    const map = spawnSync(process.execPath, [BIN, "runtime"], { encoding: "utf8" });
+    const map = spawnSync(process.execPath, [BIN, "install"], { encoding: "utf8" });
     expect(map.status).toBe(EXIT.NOT_IMPLEMENTED);
   });
 });

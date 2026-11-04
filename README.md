@@ -33,6 +33,36 @@ pip install semgrep          # Semgrep CE, LGPL-2.1
 Without an engine those checks are skipped and listed as skipped; everything else still runs.
 Set `scanner.engine` / `scanner.command` in `.iv/config.yaml` to pick one explicitly.
 
+## Runtime verification (opt-in)
+
+`iv runtime` needs the app running, so it **asks before every step** (start backend, start
+frontend, open the browser, submit forms, run Schemathesis). `--plan` only lists the steps;
+`--yes` approves them all and is meant for agents that have already asked the user.
+
+```yaml
+# .iv/config.yaml
+runtime:
+  backend:  { command: "uvicorn app.main:app --port 8000", cwd: backend, url: "http://localhost:8000/docs" }
+  frontend: { command: "npm run dev", cwd: frontend, url: "http://localhost:5173" }
+  testData: .iv/testdata.yaml          # form values; sensitive ones are watched for leaks
+  # playwrightTests: { cwd: frontend } # use your Playwright tests instead of a crawl
+  # openapi: backend/openapi.json      # for --schemathesis
+```
+
+```yaml
+# .iv/testdata.yaml
+fields: { email: tester@example.com, password: "Test-Only-Pa55!" }
+submitForms: true   # off by default
+maxPages: 20
+```
+
+It drives your Playwright tests (with tracing) when a `playwright.config.*` exists, otherwise
+it crawls same-origin pages and fills forms. It then reports requests to unmapped routes,
+failed calls, responses that lack declared fields, and test values that show up in the
+console, Web Storage, cookies, URLs, other responses or **the server's own log output**.
+Needs a browser once: `npx playwright install chromium`. Schemathesis (`pip install
+schemathesis`) is optional.
+
 ## Commands
 
 | Command | What it does | Status |
@@ -41,8 +71,8 @@ Set `scanner.engine` / `scanner.command` in `.iv/config.yaml` to pick one explic
 | `iv map` | Frontend call → route → handler graph, with fix suggestions → `.iv/map.json` | ✅ |
 | `iv flow` | Trace request and response fields end to end → `.iv/flow.json` | ✅ |
 | `iv check` | Map + leak, secret, outbound-host, validation and logging checks; applies the gate → `.iv/check.json` | ✅ |
-| `iv runtime` | Opt-in: verify against the running app with Playwright | PR 5 |
-| `iv report` | Markdown and SARIF reports from the last check | ✅ |
+| `iv runtime` | Opt-in: start the app, drive it with Playwright, compare real traffic with the map → `.iv/runtime.json` | ✅ |
+| `iv report` | Markdown and SARIF reports from the last check (and runtime run) | ✅ |
 | `iv install` | Install harness adapters | PR 7 |
 | `iv config init \| validate` | Create or check `.iv/config.yaml` | ✅ |
 
