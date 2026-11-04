@@ -1,0 +1,16 @@
+{
+  "name": "integration-verifier",
+  "description": "Integration Verifier: checks that frontend, backend and APIs are connected and that no data leaks across them",
+  "owner": {
+    "name": "The Integration Verifier Authors",
+    "url": "https://github.com/Varun14gk/integration-verifier"
+  },
+  "plugins": [
+    {
+      "name": "integration-verifier",
+      "source": "./adapters/claude-code",
+      "description": "Integration map, data-flow and leak checks with a gate before Claude finishes; reports only, never rewires code",
+      "category": "development"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "integration-verifier": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs", "mcp", "--root", "${CLAUDE_PROJECT_DIR}"]
+    }
+  }
+}

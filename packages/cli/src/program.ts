@@ -11,6 +11,8 @@ import {
 } from "@integration-verifier/core";
 import { planSteps, runRuntime, RuntimeConfigError, type RuntimeReport } from "@integration-verifier/runtime";
 import { serveStdio } from "@integration-verifier/mcp";
+import { HARNESSES, runHook, type Harness } from "./hooks.js";
+import { detectHarnesses, INSTALLERS, installLauncher, type InstallOptions } from "./install.js";
 
 /** Process exit codes. Hooks and CI depend on these, so keep them stable. */
 export const EXIT = {
@@ -48,9 +50,7 @@ const defaultIo: Io = {
 };
 
 /** Commands from the spec that later PRs fill in. */
-const PLANNED: { name: string; summary: string; pr: number }[] = [
-  { name: "install", summary: "install harness adapters (Claude Code, Codex, Gemini CLI)", pr: 7 },
-];
+const PLANNED: { name: string; summary: string; pr: number }[] = [];
 
 /**
  * Builds the `iv` program. Actions store their exit code in `result.code`
@@ -278,6 +278,73 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
       await serveStdio(resolve(opts.root));
       // Keep running until the client closes stdin.
       await new Promise<void>((done) => process.stdin.on("close", () => done()));
+    });
+
+  program
+    .command("install")
+    .description("install the adapters for detected (or chosen) coding harnesses")
+    .option("--all", "every detected harness")
+    .option("--claude-code", "Claude Code plugin")
+    .option("--codex", "Codex plugin")
+    .option("--gemini-cli", "Gemini CLI extension")
+    .option("--scope <scope>", "user (default) or project", "user")
+    .option("-r, --root <dir>", "project directory for --scope project", ".")
+    .option("--dry-run", "show what would change, write nothing")
+    .action((opts: { all?: boolean; claudeCode?: boolean; codex?: boolean; geminiCli?: boolean; scope: string; root: string; dryRun?: boolean }) => {
+      if (opts.scope !== "user" && opts.scope !== "project") {
+        io.err(`Unknown scope ${opts.scope}; use user or project.\n`);
+        result.code = EXIT.USAGE;
+        return;
+      }
+      const installOpts: InstallOptions = { scope: opts.scope, projectDir: resolve(opts.root), ...(opts.dryRun ? { dryRun: true } : {}) };
+      const chosen: Harness[] = [
+        ...(opts.claudeCode ? ["claude-code" as const] : []),
+        ...(opts.codex ? ["codex" as const] : []),
+        ...(opts.geminiCli ? ["gemini-cli" as const] : []),
+      ];
+      const targets = opts.all ? [...new Set([...detectHarnesses(installOpts), ...chosen])] : chosen;
+      if (!targets.length) {
+        io.err(opts.all ? "No supported harness found (looked for ~/.claude, ~/.codex, ~/.gemini).\n" : "Choose --all or a harness (--claude-code, --codex, --gemini-cli).\n");
+        result.code = EXIT.USAGE;
+        return;
+      }
+      const results = [installLauncher(installOpts)];
+      for (const h of targets) {
+        const installer = INSTALLERS[h];
+        if (!installer) {
+          io.err(`${h}: adapter not available yet.\n`);
+          continue;
+        }
+        try {
+          results.push(installer(installOpts));
+        } catch (e) {
+          io.err(`${h}: ${(e as Error).message}\n`);
+          result.code = EXIT.USAGE;
+        }
+      }
+      for (const r of results) {
+        io.out(`${r.harness}:\n`);
+        for (const c of r.changes) io.out(`  ${opts.dryRun ? "would " : ""}${c.action} ${c.path}${c.note ? ` (${c.note})` : ""}\n`);
+        for (const s of r.nextSteps) io.out(`  next: ${s}\n`);
+      }
+    });
+
+  program
+    .command("hook")
+    .description("run as a harness hook: reads the hook's JSON from stdin (used by the adapters)")
+    .argument("<harness>", HARNESSES.join(" | "))
+    .argument("<event>", "post-write | stop")
+    .action(async (harness: string, event: string) => {
+      if (!(HARNESSES as readonly string[]).includes(harness) || (event !== "post-write" && event !== "stop")) {
+        io.err(`Usage: iv hook <${HARNESSES.join("|")}> <post-write|stop>\n`);
+        result.code = EXIT.USAGE;
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const c of process.stdin) chunks.push(c as Buffer);
+      const out = await runHook(harness as Harness, event, Buffer.concat(chunks).toString("utf8"));
+      if (out.stdout) io.out(out.stdout + "\n");
+      result.code = out.code;
     });
 
   for (const planned of PLANNED) {
