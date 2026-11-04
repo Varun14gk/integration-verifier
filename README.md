@@ -7,7 +7,8 @@ sensitive data leaks across those boundaries.
 It **informs, it doesn't rewire**: it reports what is connected, what is not, and the likely
 correct connection, with evidence and a confidence level. You decide what to change.
 
-> Status: pre-release 0.1.0. Everything on the roadmap is implemented; it is not yet published
+> Status: pre-release 0.1.0. The core product is complete (see [Roadmap](#roadmap)); wider stack
+> coverage is in progress. It is not yet published
 > to npm or the agents' public plugin directories, so you install it from this repository.
 
 ## Installation
@@ -268,15 +269,33 @@ Exit codes: `0` OK, `1` findings at or above the gate severity, `2` usage or con
 ## Layout
 
 ```
-packages/core      detection, mapping, data-flow and leak checks
-packages/runtime   Playwright runtime verification
-packages/cli       the `iv` command
-packages/mcp       MCP server exposing the same commands
-adapters/          Claude Code, Codex, Gemini CLI integration files
-fixtures/          sample apps with planted breaks and leaks (test ground truth)
+packages/core        the engine: detect/, parse/, map/ (code, OpenAPI, GraphQL, gRPC), flow/,
+                     check/, scan/, report/, rules/ (our Semgrep/Opengrep rules)
+packages/runtime     Playwright runtime verification
+packages/cli         the `iv` command, `iv hook` (agent hooks) and `iv install`
+packages/mcp         MCP server exposing the same commands as tools
+adapters/shared      the single source for skills, subagents and the launcher
+adapters/<agent>     generated Claude Code, Codex and Gemini CLI files
+fixtures/            sample apps with planted breaks and leaks (test ground truth)
+scripts/             license check, fixture answer keys, adapter sync
+action.yml           the GitHub Action; .pre-commit-hooks.yaml for the pre-commit framework
 ```
 
+### Fixtures
+
+Each fixture is a deliberately broken app with an `expected.json` answer key. The tests require
+**exactly** the planted findings: nothing missed, nothing extra.
+
+| Fixture | Frontend | Backend | Planted |
+|---|---|---|---|
+| `react-fastapi` | React + Vite + axios | FastAPI + Pydantic | 10 |
+| `angular-spring` | Angular HttpClient | Spring Boot | 11 |
+| `nextjs-express` | Next.js (fetch, rewrites) | Express + zod | 10 |
+| `schema-first` | React (fetch, Apollo, Connect) | Scala, **not analysed**, checked through OpenAPI + GraphQL + `.proto` | 9 |
+
 ## Roadmap
+
+**Done**
 
 1. Repo skeleton, CLI, config, fixtures
 2. Phase 0: stack detection
@@ -288,6 +307,21 @@ fixtures/          sample apps with planted breaks and leaks (test ground truth)
 8. Codex adapter
 9. Gemini CLI adapter
 10. Pre-commit hook and CI gate
+11. Step-by-step install guide
+12. Six skills and three read-only subagents for every agent
+13. OpenAPI, GraphQL and gRPC schemas as universal API sources (any backend language)
+
+**Next: covering every common frontend and backend**
+
+14. JS/TS frontend clients: `.vue`/`.svelte` components, ky, ofetch/`$fetch`/`useFetch`,
+    superagent, jQuery, XHR, SWR, React Query, RTK Query, openapi-fetch, tRPC, WebSocket/SSE
+15. JS/TS backends: Fastify, Koa, Hono, Elysia, Nuxt server routes, SvelteKit, Remix/React Router
+16. Python, Ruby, PHP: Starlette, aiohttp, Sanic, Tornado, Litestar, DRF routers; Rails,
+    Sinatra; Laravel, Symfony
+17. JVM, Go, Rust, Elixir, .NET: JAX-RS/Quarkus, Micronaut, WebFlux, Ktor; chi, fiber,
+    gorilla/mux; actix, axum, Rocket; Phoenix; more ASP.NET Core
+18. Mobile frontends: Android (Retrofit/OkHttp), iOS (URLSession/Alamofire), Flutter (http/dio)
+19. A fixture for each stack family
 
 ## License
 
