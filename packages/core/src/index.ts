@@ -7,3 +7,5 @@ export * from "./config.js";
 export * from "./output.js";
 export * from "./fs-walk.js";
 export * from "./detect/index.js";
+export * from "./map/index.js";
+export * from "./gate.js";

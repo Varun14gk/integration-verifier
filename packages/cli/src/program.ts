@@ -4,7 +4,9 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { Command, CommanderError } from "commander";
-import { CONFIG_TEMPLATE, configPath, detectStack, formatStackSummary, loadConfig, VERSION, writeOutput } from "@integration-verifier/core";
+import {
+  applyGate, buildMap, CONFIG_TEMPLATE, configPath, detectStack, formatMapSummary, formatStackSummary, loadConfig, VERSION, writeOutput,
+} from "@integration-verifier/core";
 
 /** Process exit codes. Hooks and CI depend on these, so keep them stable. */
 export const EXIT = {
@@ -29,7 +31,6 @@ const defaultIo: Io = {
 
 /** Commands from the spec that later PRs fill in. */
 const PLANNED: { name: string; summary: string; pr: number }[] = [
-  { name: "map", summary: "build the frontend-to-backend integration map (.iv/map.json)", pr: 3 },
   { name: "flow", summary: "trace request and response fields end to end", pr: 4 },
   { name: "check", summary: "run data-leak and validation checks", pr: 4 },
   { name: "runtime", summary: "opt-in: verify against the running app with Playwright", pr: 5 },
@@ -66,6 +67,34 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
         io.out(formatStackSummary(report));
         io.out(`Wrote ${path}\n`);
       }
+    });
+
+  program
+    .command("map")
+    .description("build the frontend-to-backend integration map (.iv/map.json)")
+    .option("-r, --root <dir>", "project root", ".")
+    .option("--also <dirs...>", "extra roots, e.g. a backend in a separate repo")
+    .option("--json", "print the map as JSON instead of a summary")
+    .action(async (opts: { root: string; also?: string[]; json?: boolean }) => {
+      const root = resolve(opts.root);
+      const loaded = loadConfig(root);
+      if (!loaded.ok) {
+        io.err(`Invalid config: ${loaded.source}. Run "iv config validate" for details.\n`);
+        result.code = EXIT.USAGE;
+        return;
+      }
+      const stack = detectStack([root, ...(opts.also ?? []).map((d) => resolve(d))]);
+      writeOutput(root, "stack", stack);
+      const map = await buildMap(root, { stack });
+      const path = writeOutput(root, "map", map);
+      const gate = applyGate(map.findings, loaded.config);
+      if (opts.json) io.out(JSON.stringify(map, null, 2) + "\n");
+      else {
+        io.out(formatMapSummary({ ...map, findings: gate.open }));
+        if (gate.dismissed.length) io.out(`${gate.dismissed.length} finding(s) dismissed in config.\n`);
+        io.out(`Wrote ${path}\n`);
+      }
+      if (!gate.passed) result.code = EXIT.FINDINGS;
     });
 
   for (const planned of PLANNED) {

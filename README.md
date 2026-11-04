@@ -24,7 +24,7 @@ npm run iv -- config validate --root path/to/your/app
 | Command | What it does | Status |
 |---|---|---|
 | `iv detect` | Identify languages, frameworks, HTTP clients, API style → `.iv/stack.json` | ✅ |
-| `iv map` | Frontend call → route → handler graph, with fix suggestions → `.iv/map.json` | PR 3 |
+| `iv map` | Frontend call → route → handler graph, with fix suggestions → `.iv/map.json` | ✅ |
 | `iv flow` | Trace request and response fields end to end | PR 4 |
 | `iv check` | Leak, secret, outbound-host and validation checks | PR 4 |
 | `iv runtime` | Opt-in: verify against the running app with Playwright | PR 5 |

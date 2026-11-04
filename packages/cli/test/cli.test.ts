@@ -49,7 +49,7 @@ describe("iv (in process)", () => {
     expect(written.data.units[0].framework).toBe("fastapi");
   });
 
-  it.each(["map", "flow", "check", "runtime", "report", "install"])("%s is reported as not implemented", async (cmd) => {
+  it.each(["flow", "check", "runtime", "report", "install"])("%s is reported as not implemented", async (cmd) => {
     const io = capture();
     expect(await run([cmd], io)).toBe(EXIT.NOT_IMPLEMENTED);
     expect(io.stderr()).toMatch(/not implemented yet \(planned for PR \d+\)/);
@@ -87,7 +87,7 @@ describe("iv (in process)", () => {
 describe("iv (built binary)", () => {
   it("runs from dist and sets the exit code", () => {
     expect(execFileSync(process.execPath, [BIN, "--version"], { encoding: "utf8" }).trim()).toBe(VERSION);
-    const map = spawnSync(process.execPath, [BIN, "map"], { encoding: "utf8" });
+    const map = spawnSync(process.execPath, [BIN, "flow"], { encoding: "utf8" });
     expect(map.status).toBe(EXIT.NOT_IMPLEMENTED);
   });
 });
