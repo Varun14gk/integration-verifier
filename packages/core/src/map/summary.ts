@@ -17,7 +17,7 @@ export function formatMapSummary(map: MapReport): string {
   if (findings.length) lines.push("");
   for (const f of findings) {
     const ev = f.evidence[0]!;
-    const where = ev.kind === "code" ? `${ev.file}:${ev.line}` : `${ev.method} ${ev.url}`;
+    const where = ev.kind === "code" ? `${ev.file}:${ev.line}` : ev.kind === "request" ? `${ev.method} ${ev.url}` : `${ev.source} @ ${ev.location}`;
     lines.push(`${ICON[f.category] ?? "  "} [${f.severity}] ${f.category} ${where}`);
     lines.push(`   ${f.explanation}`);
     if (f.suggestedFix) lines.push(`   suggestion (${Math.round(f.confidence * 100)}%): ${f.suggestedFix}`);

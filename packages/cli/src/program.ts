@@ -3,11 +3,13 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { createInterface } from "node:readline/promises";
 import { Command, CommanderError } from "commander";
 import {
   applyGate, buildFlow, buildMap, CONFIG_TEMPLATE, configPath, detectStack, formatCheckSummary, formatFlowSummary, formatMapSummary,
   formatStackSummary, indexUi, IV_DIR, loadConfig, runCheck, toMarkdown, toSarif, VERSION, writeOutput, type CheckReport, type Config,
 } from "@integration-verifier/core";
+import { planSteps, runRuntime, RuntimeConfigError, type RuntimeReport } from "@integration-verifier/runtime";
 
 /** Process exit codes. Hooks and CI depend on these, so keep them stable. */
 export const EXIT = {
@@ -23,16 +25,29 @@ export const EXIT = {
 export interface Io {
   out: (text: string) => void;
   err: (text: string) => void;
+  /** Yes/no question to the person at the terminal; absent when nobody can answer. */
+  ask?: (question: string) => Promise<boolean>;
 }
 
 const defaultIo: Io = {
   out: (t) => process.stdout.write(t),
   err: (t) => process.stderr.write(t),
+  ...(process.stdin.isTTY
+    ? {
+        ask: async (q: string) => {
+          const rl = createInterface({ input: process.stdin, output: process.stdout });
+          try {
+            return /^y(es)?$/i.test((await rl.question(`${q} [y/N] `)).trim());
+          } finally {
+            rl.close();
+          }
+        },
+      }
+    : {}),
 };
 
 /** Commands from the spec that later PRs fill in. */
 const PLANNED: { name: string; summary: string; pr: number }[] = [
-  { name: "runtime", summary: "opt-in: verify against the running app with Playwright", pr: 5 },
   { name: "install", summary: "install harness adapters (Claude Code, Codex, Gemini CLI)", pr: 7 },
 ];
 
@@ -154,8 +169,9 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     .action((opts: { root: string; format: string; out?: string }) => {
       const root = resolve(opts.root);
       const src = join(root, IV_DIR, "check.json");
-      if (!existsSync(src)) {
-        io.err(`No ${src}. Run "iv check" first.\n`);
+      const rtSrc = join(root, IV_DIR, "runtime.json");
+      if (!existsSync(src) && !existsSync(rtSrc)) {
+        io.err(`No ${src}. Run "iv check" (and optionally "iv runtime") first.\n`);
         result.code = EXIT.USAGE;
         return;
       }
@@ -164,7 +180,18 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
         result.code = EXIT.USAGE;
         return;
       }
-      const report = (JSON.parse(readFileSync(src, "utf8")) as { data: CheckReport }).data;
+      const config = configOrFail(root);
+      if (!config) return;
+      const check = existsSync(src) ? (JSON.parse(readFileSync(src, "utf8")) as { data: CheckReport }).data : null;
+      const runtime = existsSync(rtSrc) ? (JSON.parse(readFileSync(rtSrc, "utf8")) as { data: RuntimeReport }).data : null;
+      const findings = [...(check?.findings ?? []), ...(runtime?.findings ?? [])];
+      const report: CheckReport = {
+        findings,
+        gate: applyGate(findings, config),
+        engine: check?.engine ?? null,
+        skipped: check?.skipped ?? [],
+        scope: check?.scope ?? { files: null },
+      };
       const outDir = resolve(opts.out ?? join(root, IV_DIR));
       mkdirSync(outDir, { recursive: true });
       if (opts.format !== "sarif") {
@@ -175,6 +202,54 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
         writeFileSync(join(outDir, "report.sarif"), JSON.stringify(toSarif(report), null, 2) + "\n", "utf8");
         io.out(`Wrote ${join(outDir, "report.sarif")}\n`);
       }
+    });
+
+  program
+    .command("runtime")
+    .description("opt-in: start the app, drive it with Playwright and compare real traffic with the map (.iv/runtime.json)")
+    .option("-r, --root <dir>", "project root", ".")
+    .option("-y, --yes", "approve every step (only after the user has agreed to them)")
+    .option("--no-start", "the app is already running; do not start anything")
+    .option("--mode <mode>", "auto, crawl or tests (existing Playwright tests)", "auto")
+    .option("--schemathesis", "also run Schemathesis against the OpenAPI schema")
+    .option("--max-pages <n>", "pages to visit when crawling", (v) => Number(v))
+    .option("--plan", "only print the steps, run nothing")
+    .action(async (opts: { root: string; yes?: boolean; start: boolean; mode: string; schemathesis?: boolean; maxPages?: number; plan?: boolean }) => {
+      const root = resolve(opts.root);
+      const config = configOrFail(root);
+      if (!config) return;
+      if (!["auto", "crawl", "tests"].includes(opts.mode)) {
+        io.err(`Unknown mode ${opts.mode}; use auto, crawl or tests.\n`);
+        result.code = EXIT.USAGE;
+        return;
+      }
+      const runOpts = { start: opts.start, mode: opts.mode as "auto" | "crawl" | "tests", schemathesis: !!opts.schemathesis };
+      let steps;
+      try {
+        steps = planSteps(root, config, runOpts);
+      } catch (e) {
+        if (!(e instanceof RuntimeConfigError)) throw e;
+        io.err(`${e.message}\n`);
+        result.code = EXIT.USAGE;
+        return;
+      }
+      io.out("Runtime verification will ask before each of these steps:\n");
+      steps.forEach((s, i) => io.out(`  ${i + 1}. ${s.description}\n`));
+      if (opts.plan) return;
+      if (!opts.yes && !io.ask) {
+        io.err("Nobody can confirm these steps here. Ask the user, then re-run with --yes.\n");
+        result.code = EXIT.USAGE;
+        return;
+      }
+      const { report } = await runRuntime(root, config, {
+        ...runOpts,
+        ...(opts.maxPages ? { maxPages: opts.maxPages } : {}),
+        approve: async (s) => opts.yes || (await io.ask!(`${s.description}?`)),
+        log: (m) => io.out(`${m}\n`),
+      });
+      const path = writeOutput(root, "runtime", report);
+      io.out(formatRuntimeSummary(report) + `Wrote ${path}\n`);
+      if (!report.gate.passed) result.code = EXIT.FINDINGS;
     });
 
   for (const planned of PLANNED) {
@@ -248,4 +323,16 @@ export async function run(args: string[], io: Io = defaultIo): Promise<number> {
     throw e;
   }
   return result.code;
+}
+
+function formatRuntimeSummary(r: RuntimeReport): string {
+  const lines = [`Runtime (${r.mode}): ${r.pages.length} pages, ${r.requests.length} API requests, ${r.confirmedEdges.length} map edges confirmed`];
+  for (const s of r.steps) lines.push(`  step ${s.id}: ${s.approved ? (s.ok ? "done" : "failed") : "skipped"}${s.note ? ` (${s.note})` : ""}`);
+  for (const f of r.gate.open) {
+    const e = f.evidence[0]!;
+    lines.push(`  [${f.severity}] ${f.category} ${e.kind === "request" ? `${e.method} ${e.url}${e.status ? ` ${e.status}` : ""}` : e.kind === "observation" ? `${e.source} @ ${e.location}` : `${e.file}:${e.line}`}`);
+    lines.push(`      ${f.explanation}`);
+  }
+  lines.push(r.gate.passed ? "Gate: passed" : `Gate: FAILED (${r.gate.blocking.length} blocking)`);
+  return lines.join("\n") + "\n";
 }

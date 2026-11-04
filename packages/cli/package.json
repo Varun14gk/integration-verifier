@@ -9,9 +9,12 @@
   },
   "main": "dist/program.js",
   "types": "dist/program.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@integration-verifier/core": "0.1.0",
-    "commander": "15.0.0"
+    "commander": "15.0.0",
+    "@integration-verifier/runtime": "0.1.0"
   }
 }

@@ -73,8 +73,14 @@ export const ConfigSchema = z.strictObject({
     .strictObject({
       frontend: RuntimeProcessSchema.optional(),
       backend: RuntimeProcessSchema.optional(),
-      /** File with test data (logins, form values) for driving flows. */
+      /** Where the browser starts; defaults to the frontend (or backend) url. */
+      startUrl: z.url().optional(),
+      /** File with test data (form values, sensitive values to watch for). */
       testData: z.string().optional(),
+      /** Existing Playwright tests to drive the flows instead of a crawl. */
+      playwrightTests: z.strictObject({ cwd: z.string().default("."), command: z.string().optional() }).optional(),
+      /** OpenAPI schema (file or URL) for the optional Schemathesis run. */
+      openapi: z.string().optional(),
     })
     .optional(),
   gate: z

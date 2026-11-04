@@ -31,6 +31,8 @@ jobs:
       - name: Install Semgrep CE (pattern engine for the leak checks)
         run: pip install semgrep
       - run: npm ci
+      - name: Install Chromium for the runtime tests
+        run: npx playwright install --with-deps chromium
       - run: npm run licenses
       - run: npm test
         env:

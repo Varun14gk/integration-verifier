@@ -97,7 +97,7 @@ export function formatCheckSummary(r: CheckReport): string {
   ];
   for (const f of r.gate.open) {
     const e = f.evidence[0]!;
-    lines.push(`  [${f.severity}] ${f.category} ${e.kind === "code" ? `${e.file}:${e.line}` : `${e.method} ${e.url}`}`);
+    lines.push(`  [${f.severity}] ${f.category} ${e.kind === "code" ? `${e.file}:${e.line}` : e.kind === "request" ? `${e.method} ${e.url}` : `${e.source} @ ${e.location}`}`);
     lines.push(`      ${f.explanation}`);
     if (f.suggestedFix) lines.push(`      fix: ${f.suggestedFix}`);
   }
