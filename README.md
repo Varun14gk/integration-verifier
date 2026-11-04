@@ -17,6 +17,12 @@ it to the coding agent(s) you use. Each agent gets the same things: a skill that
 how to use the tool, the MCP tools, a fast check after every file the agent writes, and the full
 gate before the agent finishes.
 
+The skills (six, each loaded only when the task matches): `integration-verifier` (overview),
+`verify-integration`, `audit-data-leaks`, `runtime-verification`, `triage-findings` and
+`setup-integration-verifier`. The subagents (three, all read-only): `integration-reviewer`,
+`leak-auditor` and `fix-verifier`. They are the same for every agent, generated from
+`adapters/shared`.
+
 ### Prerequisites
 
 - **Node.js 22 or newer** and **git**

@@ -25,6 +25,13 @@ Requires Node 22 or newer.
 line. If you edit a fixture, update `expected.json` too; `tests/fixtures.test.ts`
 fails if a line number no longer matches.
 
+## Skills, subagents and the launcher
+
+Edit them only in `adapters/shared/` (`skills/<name>/SKILL.md`, `agents/<name>.md`,
+`iv-launch.mjs`), then run `node scripts/sync-adapters.mjs`. It writes each harness's format
+(Claude Code and Gemini CLI Markdown agents, Codex TOML agents). A test fails if an adapter
+is out of sync.
+
 ## Licensing
 
 - New files need the header:

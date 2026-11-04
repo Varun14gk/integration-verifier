@@ -122,13 +122,16 @@ function upsertBlock(path: string, block: string, opts: InstallOptions, changes:
   writeFile(path, next, opts, changes, note);
 }
 
-/** Copies an adapter folder, rewriting text files with `transform`. */
-function copyAdapter(from: string, to: string, transform: (rel: string, text: string) => string, opts: InstallOptions, changes: FileChange[]): void {
+/** Copies an adapter folder, rewriting text files with `transform` (null skips the file). */
+function copyAdapter(from: string, to: string, transform: (rel: string, text: string) => string | null, opts: InstallOptions, changes: FileChange[]): void {
   const walk = (dir: string, rel: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) walk(join(dir, e.name), r);
-      else writeFile(join(to, r), transform(r, readFileSync(join(dir, e.name), "utf8")), opts, changes);
+      else {
+        const text = transform(r, readFileSync(join(dir, e.name), "utf8"));
+        if (text !== null) writeFile(join(to, r), text, opts, changes);
+      }
     }
   };
   walk(from, "");
@@ -148,6 +151,8 @@ export function installCodex(opts: InstallOptions): InstallResult {
   const pluginDir = join(home, ".codex", "plugins", PLUGIN);
   const launcher = fwd(join(pluginDir, "scripts", "iv-launch.mjs"));
   copyAdapter(join(REPO_ROOT, "adapters", "codex"), pluginDir, (rel, text) => {
+    // Codex plugins cannot carry custom agents; they are installed below, where Codex reads them.
+    if (rel.startsWith("agents/")) return null;
     if (rel === "hooks/hooks.json") return text.split("$PLUGIN_ROOT/scripts/iv-launch.mjs").join(launcher);
     if (rel === "mcp.json") {
       const j = JSON.parse(text) as { mcpServers: Record<string, { args: string[] }> };
@@ -157,6 +162,12 @@ export function installCodex(opts: InstallOptions): InstallResult {
     }
     return text;
   }, opts, changes);
+
+  const agentsDir = opts.scope === "project" ? join(resolve(opts.projectDir ?? "."), ".codex", "agents") : join(home, ".codex", "agents");
+  const agentsSrc = join(REPO_ROOT, "adapters", "codex", "agents");
+  for (const f of readdirSync(agentsSrc).filter((x) => x.endsWith(".toml"))) {
+    writeFile(join(agentsDir, f), readFileSync(join(agentsSrc, f), "utf8"), opts, changes, "custom agent");
+  }
 
   const marketPath = join(home, ".agents", "plugins", "marketplace.json");
   const market = readJson(marketPath) as { name?: string; interface?: unknown; plugins?: { name: string }[] };

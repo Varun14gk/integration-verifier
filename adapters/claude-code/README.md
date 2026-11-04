@@ -12,7 +12,8 @@ The `iv` CLI must be installed (see the main README); `scripts/iv-launch.mjs` fi
 | File | Does |
 |---|---|
 | `.claude-plugin/plugin.json` | Manifest |
-| `skills/integration-verifier/SKILL.md` | When and how Claude should use the tools, and the rules (report only, ask before runtime steps, never dismiss on its own) |
+| `skills/*/SKILL.md` | Six skills, loaded when the task matches: `integration-verifier` (overview and rules), `verify-integration`, `audit-data-leaks`, `runtime-verification`, `triage-findings`, `setup-integration-verifier` |
+| `agents/*.md` | Three read-only subagents: `integration-reviewer`, `leak-auditor`, `fix-verifier` (file-editing tools denied) |
 | `.mcp.json` | The `integration-verifier` MCP server (`iv mcp`) for the project directory |
 | `hooks/hooks.json` | `PostToolUse` on Write/Edit/MultiEdit: fast check of the written file, fed back as context. `Stop`: the full gate; blocks while findings at or above `gate.failOn` are open, once per distinct set of findings |
 | `scripts/iv-launch.mjs` | Copy of `adapters/shared/iv-launch.mjs` |
