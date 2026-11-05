@@ -5,15 +5,19 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { Command, CommanderError } from "commander";
+import { Command, CommanderError, InvalidArgumentError } from "commander";
 import {
   addDismissal, applyGate, buildFlow, buildMap, CONFIG_TEMPLATE, configPath, detectStack, formatCheckSummary, formatFlowSummary, formatMapSummary,
   formatStackSummary, indexUi, IV_DIR, loadConfig, runCheck, toMarkdown, toSarif, VERSION, writeOutput, type CheckReport, type Config,
 } from "@integration-verifier/core";
 import { planSteps, runRuntime, RuntimeConfigError, type RuntimeReport } from "@integration-verifier/runtime";
 import { serveStdio } from "@integration-verifier/mcp";
-import { HARNESSES, runHook, type Harness } from "./hooks.js";
-import { detectHarnesses, INSTALLERS, installGitHook, installGitHubAction, installLauncher, type InstallOptions } from "./install.js";
+import { checkStaged } from "./staged.js";
+import { HARNESSES, HOOK_EVENTS, runHook, type Harness, type HookEvent } from "./hooks.js";
+import {
+  detectHarnesses, INSTALLERS, installGitHook, installGitHubAction, installLauncher, UNINSTALLERS, uninstallGitHook, uninstallGitHubAction,
+  uninstallLauncher, type InstallOptions, type InstallResult,
+} from "./install.js";
 
 /** Process exit codes. Hooks and CI depend on these, so keep them stable. */
 export const EXIT = {
@@ -22,8 +26,8 @@ export const EXIT = {
   FINDINGS: 1,
   /** Bad arguments or invalid `.iv/config.yaml`. */
   USAGE: 2,
-  /** The command exists but is not built yet. */
-  NOT_IMPLEMENTED: 3,
+  /** Internal error (a crash). Never means "findings". */
+  ERROR: 4,
 } as const;
 
 export interface Io {
@@ -49,9 +53,6 @@ const defaultIo: Io = {
       }
     : {}),
 };
-
-/** Commands from the spec that later PRs fill in. */
-const PLANNED: { name: string; summary: string; pr: number }[] = [];
 
 /**
  * Builds the `iv` program. Actions store their exit code in `result.code`
@@ -143,32 +144,36 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     .option("-r, --root <dir>", "project root", ".")
     .option("--also <dirs...>", "extra roots, e.g. a backend in a separate repo")
     .option("--files <files...>", "only report findings in these files (fast mode for hooks)")
-    .option("--staged", "only report findings in files staged for commit (pre-commit hook)")
+    .option("--staged", "check what is staged for commit: findings in staged files plus anything new this commit breaks (pre-commit hook)")
     .option("--no-engine", "skip checks that need Opengrep/Semgrep")
     .option("--json", "print the check report as JSON")
     .action(async (opts: { root: string; also?: string[]; files?: string[]; staged?: boolean; engine: boolean; json?: boolean }) => {
       const root = resolve(opts.root);
       const config = configOrFail(root);
       if (!config) return;
-      let files = opts.files;
+      let checked;
       if (opts.staged) {
-        const staged = stagedFiles(root);
-        if (staged === null) {
-          io.err("--staged needs a git repository.\n");
+        const s = await checkStaged(root, { engine: opts.engine, ...(opts.also ? { also: opts.also } : {}) });
+        if ("error" in s) {
+          io.err(`Integration Verifier: ${s.error}\n`);
           result.code = EXIT.USAGE;
           return;
         }
-        if (!staged.length) {
-          io.out("Integration Verifier: no staged files to check.\n");
+        if ("nothing" in s) {
+          io.out("Integration Verifier: nothing staged to check.\n");
           return;
         }
-        files = [...(files ?? []), ...staged];
+        for (const n of s.notes) io.err(`Note: ${n}\n`);
+        if (s.newElsewhere) io.err(`Note: ${s.newElsewhere} finding(s) outside the staged files are new in this commit (for example a frontend call broken by a staged backend change).\n`);
+        checked = s.result;
+      } else {
+        checked = await runCheck(root, config, {
+          ...(opts.also ? { also: opts.also } : {}),
+          ...(opts.files ? { files: opts.files } : {}),
+          ...(opts.engine ? {} : { engine: null }),
+        });
       }
-      const { stack, map, flow, report } = await runCheck(root, config, {
-        ...(opts.also ? { also: opts.also } : {}),
-        ...(files ? { files } : {}),
-        ...(opts.engine ? {} : { engine: null }),
-      });
+      const { stack, map, flow, report } = checked;
       writeOutput(root, "stack", stack);
       writeOutput(root, "map", map);
       writeOutput(root, "flow", flow);
@@ -199,8 +204,26 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
       }
       const config = configOrFail(root);
       if (!config) return;
-      const check = existsSync(src) ? (JSON.parse(readFileSync(src, "utf8")) as { data: CheckReport }).data : null;
-      const runtime = existsSync(rtSrc) ? (JSON.parse(readFileSync(rtSrc, "utf8")) as { data: RuntimeReport }).data : null;
+      const readEnvelope = <T,>(path: string): { data: T; generatedAt?: string } | null => {
+        if (!existsSync(path)) return null;
+        try {
+          return JSON.parse(readFileSync(path, "utf8")) as { data: T; generatedAt?: string };
+        } catch (e) {
+          io.err(`${path} is not valid JSON (${(e as Error).message}); re-run the command that writes it.\n`);
+          result.code = EXIT.USAGE;
+          return null;
+        }
+      };
+      const checkFile = readEnvelope<CheckReport>(src);
+      const runtimeFile = readEnvelope<RuntimeReport>(rtSrc);
+      if (result.code === EXIT.USAGE) return;
+      const check = checkFile?.data ?? null;
+      let runtime = runtimeFile?.data ?? null;
+      // Runtime results older than the last check describe an earlier version of the code.
+      if (runtime && checkFile?.generatedAt && runtimeFile?.generatedAt && runtimeFile.generatedAt < checkFile.generatedAt) {
+        io.err(`Note: ${rtSrc} (${runtimeFile.generatedAt}) is older than the last check; its findings are left out. Re-run "iv runtime" to include them.\n`);
+        runtime = null;
+      }
       const findings = [...(check?.findings ?? []), ...(runtime?.findings ?? [])];
       const report: CheckReport = {
         findings,
@@ -229,7 +252,11 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     .option("--no-start", "the app is already running; do not start anything")
     .option("--mode <mode>", "auto, crawl or tests (existing Playwright tests)", "auto")
     .option("--schemathesis", "also run Schemathesis against the OpenAPI schema")
-    .option("--max-pages <n>", "pages to visit when crawling", (v) => Number(v))
+    .option("--max-pages <n>", "pages to visit when crawling (1-1000)", (v) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 1 || n > 1000) throw new InvalidArgumentError("must be a whole number from 1 to 1000");
+      return n;
+    })
     .option("--plan", "only print the steps, run nothing")
     .action(async (opts: { root: string; yes?: boolean; start: boolean; mode: string; schemathesis?: boolean; maxPages?: number; plan?: boolean }) => {
       const root = resolve(opts.root);
@@ -296,94 +323,79 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
       await new Promise<void>((done) => process.stdin.on("close", () => done()));
     });
 
-  program
-    .command("install")
-    .description("install the adapters for detected (or chosen) coding harnesses")
-    .option("--all", "every detected harness")
-    .option("--claude-code", "Claude Code plugin")
-    .option("--codex", "Codex plugin")
-    .option("--gemini-cli", "Gemini CLI extension")
-    .option("--git-hook", "git pre-commit hook in the project at --root")
-    .option("--github-action", "GitHub Actions workflow in the project at --root")
-    .option("--scope <scope>", "user (default) or project", "user")
-    .option("-r, --root <dir>", "project directory for --scope project, --git-hook and --github-action", ".")
-    .option("--dry-run", "show what would change, write nothing")
-    .action((opts: { all?: boolean; claudeCode?: boolean; codex?: boolean; geminiCli?: boolean; gitHook?: boolean; githubAction?: boolean; scope: string; root: string; dryRun?: boolean }) => {
-      if (opts.scope !== "user" && opts.scope !== "project") {
-        io.err(`Unknown scope ${opts.scope}; use user or project.\n`);
-        result.code = EXIT.USAGE;
-        return;
-      }
-      const installOpts: InstallOptions = { scope: opts.scope, projectDir: resolve(opts.root), ...(opts.dryRun ? { dryRun: true } : {}) };
-      const chosen: Harness[] = [
-        ...(opts.claudeCode ? ["claude-code" as const] : []),
-        ...(opts.codex ? ["codex" as const] : []),
-        ...(opts.geminiCli ? ["gemini-cli" as const] : []),
-      ];
-      const targets = opts.all ? [...new Set([...detectHarnesses(installOpts), ...chosen])] : chosen;
-      const projectInstallers = [...(opts.gitHook ? [installGitHook] : []), ...(opts.githubAction ? [installGitHubAction] : [])];
-      if (!targets.length && !projectInstallers.length) {
-        io.err(opts.all ? "No supported harness found (looked for ~/.claude, ~/.codex, ~/.gemini).\n" : "Choose --all, a harness (--claude-code, --codex, --gemini-cli), --git-hook or --github-action.\n");
-        result.code = EXIT.USAGE;
-        return;
-      }
-      const results = [installLauncher(installOpts)];
-      for (const install of projectInstallers) {
-        try {
-          results.push(install(installOpts));
-        } catch (e) {
-          io.err(`${(e as Error).message}\n`);
+  type SetupOpts = { all?: boolean; claudeCode?: boolean; codex?: boolean; geminiCli?: boolean; gitHook?: boolean; githubAction?: boolean; scope: string; root: string; dryRun?: boolean };
+  const setupCommand = (name: "install" | "uninstall", description: string) =>
+    program
+      .command(name)
+      .description(description)
+      .option("--all", "every detected harness")
+      .option("--claude-code", "Claude Code plugin")
+      .option("--codex", "Codex plugin")
+      .option("--gemini-cli", "Gemini CLI extension")
+      .option("--git-hook", "git pre-commit hook in the project at --root")
+      .option("--github-action", "GitHub Actions workflow in the project at --root")
+      .option("--scope <scope>", "user (default) or project", "user")
+      .option("-r, --root <dir>", "project directory for --scope project, --git-hook and --github-action", ".")
+      .option("--dry-run", "show what would change, write nothing")
+      .action((opts: SetupOpts) => {
+        if (opts.scope !== "user" && opts.scope !== "project") {
+          io.err(`Unknown scope ${opts.scope}; use user or project.\n`);
           result.code = EXIT.USAGE;
+          return;
         }
-      }
-      for (const h of targets) {
-        const installer = INSTALLERS[h];
-        if (!installer) {
-          io.err(`${h}: adapter not available yet.\n`);
-          continue;
-        }
-        try {
-          results.push(installer(installOpts));
-        } catch (e) {
-          io.err(`${h}: ${(e as Error).message}\n`);
+        const setupOpts: InstallOptions = { scope: opts.scope, projectDir: resolve(opts.root), ...(opts.dryRun ? { dryRun: true } : {}) };
+        const chosen: Harness[] = [
+          ...(opts.claudeCode ? ["claude-code" as const] : []),
+          ...(opts.codex ? ["codex" as const] : []),
+          ...(opts.geminiCli ? ["gemini-cli" as const] : []),
+        ];
+        const harnesses = opts.all ? [...new Set([...detectHarnesses(setupOpts), ...chosen])] : chosen;
+        const install = name === "install";
+        const steps: [string, (o: InstallOptions) => InstallResult][] = [
+          ...(install ? [["launcher", installLauncher] as [string, typeof installLauncher]] : []),
+          ...(opts.gitHook ? [["git-hook", install ? installGitHook : uninstallGitHook] as [string, typeof installGitHook]] : []),
+          ...(opts.githubAction ? [["github-action", install ? installGitHubAction : uninstallGitHubAction] as [string, typeof installGitHook]] : []),
+          ...harnesses.map((h) => [h, (install ? INSTALLERS : UNINSTALLERS)[h]] as [string, typeof installGitHook]),
+          ...(!install && opts.all ? [["launcher", uninstallLauncher] as [string, typeof installGitHook]] : []),
+        ];
+        if (steps.length === (install ? 1 : 0)) {
+          io.err(opts.all ? "No supported harness found (looked for ~/.claude, ~/.codex, ~/.gemini).\n" : "Choose --all, a harness (--claude-code, --codex, --gemini-cli), --git-hook or --github-action.\n");
           result.code = EXIT.USAGE;
+          return;
         }
-      }
-      for (const r of results) {
-        io.out(`${r.harness}:\n`);
-        for (const c of r.changes) io.out(`  ${opts.dryRun ? "would " : ""}${c.action} ${c.path}${c.note ? ` (${c.note})` : ""}\n`);
-        for (const s of r.nextSteps) io.out(`  next: ${s}\n`);
-      }
-    });
+        for (const [label, step] of steps) {
+          try {
+            const r = step(setupOpts);
+            io.out(`${r.harness}:${r.changes.length ? "" : " nothing to change"}\n`);
+            for (const c of r.changes) io.out(`  ${opts.dryRun ? "would " : ""}${c.action} ${c.path}${c.note ? ` (${c.note})` : ""}\n`);
+            for (const s of r.nextSteps) io.out(`  next: ${s}\n`);
+          } catch (e) {
+            io.err(`${label}: ${(e as Error).message}\n`);
+            result.code = EXIT.USAGE;
+          }
+        }
+      });
+  setupCommand("install", "connect Integration Verifier to coding agents, a git hook or GitHub Actions (backs up every file it changes)");
+  setupCommand("uninstall", "remove exactly what `iv install` added, leaving your other settings alone");
 
   program
     .command("hook")
     .description("run as a harness hook: reads the hook's JSON from stdin (used by the adapters)")
     .argument("<harness>", HARNESSES.join(" | "))
-    .argument("<event>", "post-write | stop")
+    .argument("<event>", HOOK_EVENTS.join(" | "))
     .action(async (harness: string, event: string) => {
-      if (!(HARNESSES as readonly string[]).includes(harness) || (event !== "post-write" && event !== "stop")) {
-        io.err(`Usage: iv hook <${HARNESSES.join("|")}> <post-write|stop>\n`);
+      if (!(HARNESSES as readonly string[]).includes(harness) || !(HOOK_EVENTS as readonly string[]).includes(event)) {
+        io.err(`Usage: iv hook <${HARNESSES.join("|")}> <${HOOK_EVENTS.join("|")}>\n`);
         result.code = EXIT.USAGE;
         return;
       }
       const chunks: Buffer[] = [];
       for await (const c of process.stdin) chunks.push(c as Buffer);
-      const out = await runHook(harness as Harness, event, Buffer.concat(chunks).toString("utf8"));
+      const out = await runHook(harness as Harness, event as HookEvent, Buffer.concat(chunks).toString("utf8"));
       if (out.stdout) io.out(out.stdout + "\n");
+      if (out.stderr) io.err(out.stderr + "\n");
       result.code = out.code;
     });
-
-  for (const planned of PLANNED) {
-    program
-      .command(planned.name)
-      .description(planned.summary)
-      .option("-r, --root <dir>", "project root", ".")
-      .action(() => {
-        io.err(`iv ${planned.name}: not implemented yet (planned for PR ${planned.pr}).\n`);
-        result.code = EXIT.NOT_IMPLEMENTED;
-      });
-  }
 
   const config = program.command("config").description("work with .iv/config.yaml");
 
@@ -393,7 +405,8 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     .option("-r, --root <dir>", "project root", ".")
     .option("--json", "print the resolved config as JSON")
     .action((opts: { root: string; json?: boolean }) => {
-      const loaded = loadConfig(resolve(opts.root));
+      const root = resolve(opts.root);
+      const loaded = loadConfig(root);
       if (!loaded.ok) {
         io.err(`Invalid config: ${loaded.source}\n`);
         for (const issue of loaded.issues) {
@@ -406,7 +419,7 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
       if (opts.json) {
         io.out(JSON.stringify({ source: loaded.source, config: loaded.config }, null, 2) + "\n");
       } else if (loaded.source === null) {
-        io.out(`No ${configPath(".")} found; using defaults. Run "iv config init" to create one.\n`);
+        io.out(`No ${configPath(root)} found; using defaults. Run "iv config init --root ${opts.root}" to create one.\n`);
       } else {
         io.out(`Config OK: ${loaded.source}\n`);
       }
@@ -447,14 +460,6 @@ export async function run(args: string[], io: Io = defaultIo): Promise<number> {
   return result.code;
 }
 
-/** Files staged for commit (added, copied, modified, renamed), relative to `root`; null outside git. */
-function stagedFiles(root: string): string[] | null {
-  // `--relative` makes git print paths relative to `root` itself, so no path arithmetic is
-  // needed (Windows short names such as RUNNER~1 would break a comparison with the toplevel).
-  const list = spawnSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR", "--relative", "-z"], { cwd: root, encoding: "utf8" });
-  if (list.status !== 0) return null;
-  return list.stdout.split("\0").filter(Boolean);
-}
 
 function formatRuntimeSummary(r: RuntimeReport): string {
   const lines = [`Runtime (${r.mode}): ${r.pages.length} pages, ${r.requests.length} API requests, ${r.confirmedEdges.length} map edges confirmed`];

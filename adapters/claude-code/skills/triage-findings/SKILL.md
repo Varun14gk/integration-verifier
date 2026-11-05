@@ -24,9 +24,11 @@ description: Decide what to do with Integration Verifier findings when the gate 
 
 - Before you finish, a hook runs the full check. While findings at or above `gate.failOn`
   (default `high`) are open, it asks you to continue.
-- It asks once per set of findings. If you've done what you can, tell the user clearly which
+- It keeps asking while the same findings are open (up to the project's limit, then the
+  override is recorded). Don't try to wait it out: if you've done what you can, tell the user clearly which
   findings remain and why, rather than looping.
-- Lowering the gate (`gate.failOn`) is the user's decision, not yours.
+- Lowering the gate (`gate.failOn`) is the user's decision, not yours. Files in `.iv/` are the
+  user's: editing them is refused, and in git the gate only honours the committed config.
 
 ## Reports
 

@@ -54,8 +54,8 @@ iv install --all --dry-run    # shows every file it would create or change
 iv install --all
 ```
 
-Or use the agent-specific steps below. `iv install` backs up every file it changes once
-(`<file>.iv-backup`) and is safe to run again.
+Or use the agent-specific steps below. `iv install` is safe to run again, and before it changes
+any existing file it saves a copy next to it (`<file>.iv-backup-<time>`).
 
 ### Step 2a: Claude Code
 
@@ -137,21 +137,31 @@ how to start the app. Commit `.iv/config.yaml`; the other files in `.iv/` are ge
 - **After each file the agent writes:** a quick check of that file, without Semgrep, in about a
   second. Findings go back to the agent as information; nothing is blocked or changed.
 - **When the agent tries to finish:** the full gate runs. If findings at or above `gate.failOn` are
-  open, the agent is asked to fix them, or to ask **you** whether to accept them. It's asked once
-  per set of findings, so it can't loop.
+  open, the agent is sent back to fix them, or to ask **you** whether to accept them. This repeats
+  up to `gate.maxStopBlocks` times (default 5) for the same findings; after that the session may
+  end, and the override is recorded in `.iv/gate-log.jsonl`. The git hook and CI always block.
+- **The gate fails closed:** an invalid `.iv/config.yaml`, a crash, a missing CLI or a check that
+  runs out of time blocks finishing with an explanation. It never quietly passes.
+- **The agent can't change the rules:** the agents' hooks refuse edits to `.iv/`, including through
+  shell commands. In a git repository the gate also enforces the **committed** `.iv/config.yaml`,
+  so uncommitted changes to the gate severity, dismissals or engine don't count until you commit them.
 - **Accepting a finding** is your decision: `iv dismiss <finding-id> --reason "why"`, or tell the
-  agent to dismiss it with your reason. The reason is recorded in `.iv/config.yaml`.
+  agent to dismiss it with your reason (the `iv_dismiss` tool asks for your permission; keep it on
+  "ask"). The reason is recorded in `.iv/config.yaml`.
 - **Runtime checks** (`iv runtime`) start your app and a browser, so the agent must show you the
   steps and get your approval first.
 
 ### Uninstall
 
-| Agent | Remove |
-|---|---|
-| Claude Code | `/plugin uninstall integration-verifier@integration-verifier` and `/plugin marketplace remove integration-verifier`, or restore `~/.claude/settings.json.iv-backup` |
-| Codex | Delete `~/.codex/plugins/integration-verifier`, its entry in `~/.agents/plugins/marketplace.json`, the `[plugins."integration-verifier@personal"]` section in `config.toml`, and the block between `<!-- integration-verifier:start -->` and `<!-- integration-verifier:end -->` in `AGENTS.md` |
-| Gemini CLI | `gemini extensions uninstall integration-verifier`, or delete `~/.gemini/extensions/integration-verifier` |
-| All | Delete `~/.integration-verifier/` |
+`iv uninstall` takes the same options as `iv install` and removes exactly what install added,
+keeping every other setting, including changes you made since installing:
+
+```sh
+iv uninstall --all --dry-run    # shows what it would remove
+iv uninstall --all              # every agent, and ~/.integration-verifier/
+iv uninstall --codex --scope project --root path/to/project
+iv uninstall --git-hook --root path/to/project
+```
 
 ### Troubleshooting
 
@@ -162,7 +172,9 @@ how to start the app. Commit `.iv/config.yaml`; the other files in `.iv/` are ge
   open a new terminal. If it still isn't found, set `scanner.command` in `.iv/config.yaml` to the
   full path of the `semgrep` executable.
 - **The gate blocks on something you accept:** dismiss it with a reason (see above), or raise
-  `gate.failOn` to `critical`.
+  `gate.failOn` to `critical` and **commit** `.iv/config.yaml` (the gate reads the committed version).
+- **"could not run" or "did not finish" from the gate:** run `iv check` in the project to see the
+  error; `iv config validate` explains config problems.
 - **Codex hooks don't run:** trust them with `/hooks`.
 
 ## What it understands
@@ -187,13 +199,19 @@ iv install --git-hook --root path/to/project      # pre-commit: iv check --stage
 iv install --github-action --root path/to/project  # .github/workflows/integration-verifier.yml
 ```
 
-- **Pre-commit** blocks the commit while findings at or above `gate.failOn` are open in staged
-  files (`git commit --no-verify` skips it once). It never replaces a hook it didn't write. With
-  the [pre-commit framework](https://pre-commit.com), use the `integration-verifier` hook from
+- **Pre-commit** checks exactly what you're committing (the staged content, not your working copy)
+  and compares it with the last commit. It blocks on findings at or above `gate.failOn` in staged
+  files, **and on anything new this commit breaks elsewhere**. For example, deleting a backend route
+  is caught through the frontend file that still calls it. `git commit --no-verify` skips it once.
+  In a monorepo, run the install once per app (`--root`); one hook checks them all. It finds
+  `node` on your PATH at commit time and never replaces a hook it didn't write. With the
+  [pre-commit framework](https://pre-commit.com), use the `integration-verifier` hook from
   `.pre-commit-hooks.yaml`.
-- **GitHub Actions**: `uses: Varun14gk/integration-verifier@main` (inputs `root`, `engine`,
-  `fail-on-findings`, `sarif`). The generated workflow uploads SARIF to code scanning and writes
-  the Markdown report to the job summary.
+- **GitHub Actions**: `uses: Varun14gk/integration-verifier@<commit-sha>` (inputs `root`, `engine`,
+  `semgrep-version`, `fail-on-findings`, `sarif`). The generated workflow pins the action to an exact
+  commit and Semgrep to a tested version, uploads SARIF to code scanning (skipped for pull requests
+  from forks, which can't upload), and writes the Markdown report to the job summary. Configuration
+  errors and crashes always fail the job; `fail-on-findings: false` only relaxes blocking findings.
 
 ## Pattern engine (for leak checks)
 
@@ -262,9 +280,10 @@ an agent has to show the plan to the user first. `iv_dismiss` records the user's
 | `iv config init \| validate` | Create or check `.iv/config.yaml` | ✅ |
 | `iv dismiss <id> --reason …` | Accept a finding, with the reason recorded in config | ✅ |
 | `iv mcp` | Serve the tools over MCP (stdio) | ✅ |
+| `iv uninstall` | Remove exactly what `iv install` added | ✅ |
 
 Exit codes: `0` OK, `1` findings at or above the gate severity, `2` usage or config error,
-`3` not implemented yet.
+`4` internal error. Hooks and CI treat anything but `0` and `1` as "could not check".
 
 ## Layout
 

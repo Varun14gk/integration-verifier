@@ -45,5 +45,8 @@ maxPages: 20
 - **Frontend and backend in separate repositories:** pass the other path in `also` to the tools
   (CLI: `--also ../backend`).
 - **Projects without a coding agent:** `iv install --git-hook --root .` (pre-commit gate on
-  staged files), `iv install --github-action --root .` (CI gate with SARIF upload).
+  staged content, including breaks a commit causes elsewhere), `iv install --github-action --root .`
+  (CI gate with SARIF upload). `iv uninstall` with the same options removes them.
+- **In git, the gate enforces the committed `.iv/config.yaml`.** Commit config changes for them to
+  take effect.
 - **Check the config:** `iv config validate` names the exact key and line of any mistake.

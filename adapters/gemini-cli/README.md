@@ -10,7 +10,7 @@ A Gemini CLI extension. Install with `iv install --gemini-cli` (copies this fold
 | `GEMINI.md` | Short instruction pointer loaded as context |
 | `skills/*/SKILL.md` | The six shared skills |
 | `agents/*.md` | The three read-only subagents (Gemini CLI subagents are a preview feature) |
-| `hooks/hooks.json` | `AfterTool` on `write_file\|replace`: fast check, returned as `additionalContext`. `AfterAgent`: the full gate; `decision: "deny"` sends the findings back as a new prompt, once per distinct set of blocking findings |
+| `hooks/hooks.json` | `AfterTool` on `write_file\|replace`: fast check, returned as `additionalContext`. `AfterAgent`: the full gate; `decision: "deny"` sends the findings back as a new prompt, up to `gate.maxStopBlocks` times. `BeforeTool`: refuses edits to `.iv/` |
 | `scripts/iv-launch.mjs` | Copy of `adapters/shared/iv-launch.mjs` |
 
 Paths use `${extensionPath}` and `${/}`, which Gemini CLI expands, so the copy works on every OS
