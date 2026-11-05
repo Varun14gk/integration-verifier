@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,6 +10,8 @@ import { VERSION } from "@integration-verifier/core";
 import { filesOf } from "../../packages/cli/src/hooks.js";
 import { installCodex } from "../../packages/cli/src/install.js";
 
+/** One session per test run, so gate state left by earlier runs doesn't count. */
+const SESSION = `t-${process.pid}-${Date.now()}`;
 const ROOT = join(import.meta.dirname, "..", "..");
 const PLUGIN = join(ROOT, "adapters", "codex");
 const CLI = join(ROOT, "packages", "cli", "dist", "index.js");
@@ -44,24 +46,24 @@ describe("Codex adapter files", () => {
 
   it("reads the edited files out of an apply_patch", () => {
     const p = "*** Begin Patch\n*** Add File: a/new.ts\n+x\n*** Update File: b/old.py\n*** Move to: b/renamed.py\n*** Delete File: c/gone.js\n*** End Patch";
-    expect(filesOf({ tool_name: "apply_patch", tool_input: { command: p } })).toEqual(["a/new.ts", "b/old.py", "b/renamed.py"]);
+    expect(filesOf({ tool_name: "apply_patch", tool_input: { command: p } })).toEqual(["a/new.ts", "b/old.py", "b/renamed.py", "c/gone.js"]);
   });
 });
 
 describe("Codex hooks", () => {
   const run = (event: string, input: object) => {
     const r = spawnSync(process.execPath, [join(PLUGIN, "scripts", "iv-launch.mjs"), "hook", "codex", event], {
-      input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, IV_CLI: CLI }, timeout: 240_000,
+      input: JSON.stringify({ session_id: SESSION, ...input }), encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: "", GEMINI_PROJECT_DIR: "", IV_CLI: CLI }, timeout: 240_000,
     });
     return { code: r.status, out: r.stdout.trim() ? JSON.parse(r.stdout) : null };
   };
 
-  it("post-write on an apply_patch returns context; stop blocks once", () => {
+  it("post-write on an apply_patch returns context; stop keeps blocking", () => {
     const post = run("post-write", { cwd: FIXTURE, hook_event_name: "PostToolUse", tool_name: "apply_patch", tool_input: { command: patch("backend/src/server.js") } });
     expect(post.out.hookSpecificOutput).toMatchObject({ hookEventName: "PostToolUse" });
     expect(post.out.hookSpecificOutput.additionalContext).toContain("backend/src/server.js:21");
     expect(run("stop", { cwd: FIXTURE, stop_hook_active: false }).out.decision).toBe("block");
-    expect(run("stop", { cwd: FIXTURE, stop_hook_active: true })).toEqual({ code: 0, out: null });
+    expect(run("stop", { cwd: FIXTURE, stop_hook_active: true }).out.decision).toBe("block");
   }, 300_000);
 });
 
@@ -91,14 +93,14 @@ describe("iv install --codex", () => {
     const agents = readFileSync(join(home, ".codex", "AGENTS.md"), "utf8");
     expect(agents.startsWith("# My rules\n\nBe brief.\n")).toBe(true);
     expect(agents.match(/integration-verifier:start/g)).toHaveLength(1);
-    expect(existsSync(join(home, ".codex", "config.toml.iv-backup"))).toBe(true);
+    expect(readdirSync(join(home, ".codex")).some((f) => f.startsWith("config.toml.iv-backup-"))).toBe(true);
   });
 
   it("the installed hook command runs in the platform shell", () => {
     const home = mkdtempSync(join(tmpdir(), "iv-codex-"));
     installCodex({ home });
     const cmd = json(join(home, ".codex", "plugins", "integration-verifier", "hooks", "hooks.json")).hooks.Stop[0].hooks[0].command as string;
-    const r = spawnSync(cmd, { shell: true, input: JSON.stringify({ cwd: mkdtempSync(join(tmpdir(), "iv-empty-")) }), encoding: "utf8", env: { ...process.env, IV_CLI: CLI } });
+    const r = spawnSync(cmd, { shell: true, input: JSON.stringify({ cwd: mkdtempSync(join(tmpdir(), "iv-empty-")) }), encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: "", GEMINI_PROJECT_DIR: "", IV_CLI: CLI } });
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe("");
   }, 120_000);

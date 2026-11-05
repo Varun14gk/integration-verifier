@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 import { VERSION } from "@integration-verifier/core";
 import { installGeminiCli } from "../../packages/cli/src/install.js";
 
+/** One session per test run, so gate state left by earlier runs doesn't count. */
+const SESSION = `t-${process.pid}-${Date.now()}`;
 const ROOT = join(import.meta.dirname, "..", "..");
 const EXT = join(ROOT, "adapters", "gemini-cli");
 const CLI = join(ROOT, "packages", "cli", "dist", "index.js");
@@ -23,7 +25,7 @@ function expand(s: string, extensionPath: string, workspacePath: string): string
 function runHook(event: "AfterTool" | "AfterAgent", input: object) {
   const h = json(join(EXT, "hooks", "hooks.json")).hooks[event][0].hooks[0];
   const r = spawnSync(expand(h.command, EXT, FIXTURE), {
-    shell: true, input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, IV_CLI: CLI }, timeout: h.timeout,
+    shell: true, input: JSON.stringify({ session_id: SESSION, ...input }), encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: "", GEMINI_PROJECT_DIR: "", IV_CLI: CLI }, timeout: h.timeout,
   });
   return { code: r.status, out: r.stdout.trim() ? JSON.parse(r.stdout) : null };
 }
@@ -62,12 +64,12 @@ describe("Gemini CLI hooks (commands as Gemini CLI expands them)", () => {
     expect(out.hookSpecificOutput.additionalContext).toContain("missing-validation backend/src/server.js:21");
   }, 240_000);
 
-  it("AfterAgent denies once per distinct set of blocking findings", () => {
+  it("AfterAgent keeps denying while the same findings are open", () => {
     const first = runHook("AfterAgent", { cwd: FIXTURE, hook_event_name: "AfterAgent", prompt: "x", prompt_response: "done", stop_hook_active: false });
     expect(first.out).toMatchObject({ decision: "deny" });
     expect(first.out.reason).toContain("Integration Verifier gate");
     const again = runHook("AfterAgent", { cwd: FIXTURE, stop_hook_active: true });
-    expect(again.out.decision).toBeUndefined();
+    expect(again.out.decision).toBe("deny");
   }, 300_000);
 });
 

@@ -43,9 +43,24 @@ function codexAgent(a) {
   return `# Generated from adapters/shared/agents/${a.name}.md by scripts/sync-adapters.mjs\nname = ${tomlString(a.name)}\ndescription = ${tomlString(a.description)}\ndeveloper_instructions = '''\n${a.body}'''\n`;
 }
 
+/** The release version, from packages/core (the single source of truth). */
+const VERSION = /export const VERSION = "([^"]+)"/.exec(readFileSync(join(ROOT, "packages", "core", "src", "version.ts"), "utf8"))[1];
+
+/** Manifests whose "version" must equal the core version. */
+const MANIFESTS = [
+  join("adapters", "claude-code", ".claude-plugin", "plugin.json"),
+  join("adapters", "codex", "plugin.json"),
+  join("adapters", "codex", ".codex-plugin", "plugin.json"),
+  join("adapters", "gemini-cli", "gemini-extension.json"),
+];
+
 /** Every file each adapter should contain, as path -> content. */
 export function expectedFiles() {
   const files = new Map();
+  for (const m of MANIFESTS) {
+    const text = readFileSync(join(ROOT, m), "utf8");
+    files.set(m, text.replace(/("version"s*:s*")[^"]*(")/, `$1${VERSION}$2`));
+  }
   const launcher = readFileSync(join(SHARED, "iv-launch.mjs"), "utf8");
   const skills = readdirSync(join(SHARED, "skills"), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
   const agents = readdirSync(join(SHARED, "agents")).filter((f) => f.endsWith(".md")).sort().map((f) => parseAgent(readFileSync(join(SHARED, "agents", f), "utf8")));

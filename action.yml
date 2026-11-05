@@ -10,13 +10,16 @@ branding:
 
 inputs:
   root:
-    description: Project root to check, relative to the workspace
+    description: Project root to check, relative to the workspace (an absolute path also works)
     default: "."
   engine:
     description: "Pattern engine for the leak checks: semgrep (installed by this action) or none"
     default: semgrep
+  semgrep-version:
+    description: Semgrep CE version to install (pinned; the rules are tested with this one)
+    default: "1.183.0"
   fail-on-findings:
-    description: Fail the step while findings at or above gate.failOn are open
+    description: Fail the step while findings at or above gate.failOn are open. Configuration errors and crashes always fail.
     default: "true"
   sarif:
     description: Where to write the SARIF report, relative to the workspace
@@ -24,10 +27,10 @@ inputs:
 
 outputs:
   sarif:
-    description: Path of the SARIF report
+    description: Path of the SARIF report (empty when no report could be written)
     value: ${{ steps.report.outputs.sarif }}
   exit-code:
-    description: Exit code of iv check (0 passed, 1 blocking findings, 2 config error)
+    description: Exit code of iv check (0 passed, 1 blocking findings, 2 configuration error, 4 internal error)
     value: ${{ steps.check.outputs.code }}
 
 runs:
@@ -36,7 +39,25 @@ runs:
     - uses: actions/setup-node@v7
       with:
         node-version: 24
+    - name: Fingerprint the action's sources
+      id: fingerprint
+      shell: bash
+      # A hash of what gets built, so a moving ref like @main never reuses a stale build.
+      run: |
+        cd "$GITHUB_ACTION_PATH"
+        sum=$( { cat package-lock.json; find packages -path '*/src/*' -type f -print0 | sort -z | xargs -0 cat; } | sha256sum | cut -c1-32)
+        echo "key=iv-${RUNNER_OS}-node24-${sum}" >> "$GITHUB_OUTPUT"
+    - name: Cache the built tool
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          ${{ github.action_path }}/node_modules
+          ${{ github.action_path }}/packages/*/node_modules
+          ${{ github.action_path }}/packages/*/dist
+        key: ${{ steps.fingerprint.outputs.key }}
     - name: Build Integration Verifier
+      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: cd "$GITHUB_ACTION_PATH" && npm ci --no-audit --no-fund --loglevel=error && npm run build
     - if: inputs.engine == 'semgrep'
@@ -46,7 +67,9 @@ runs:
     - if: inputs.engine == 'semgrep'
       name: Install Semgrep CE
       shell: bash
-      run: python -m pip install --quiet semgrep
+      env:
+        IV_SEMGREP_VERSION: ${{ inputs.semgrep-version }}
+      run: python -m pip install --quiet "semgrep==$IV_SEMGREP_VERSION"
     - id: check
       name: iv check
       shell: bash
@@ -55,28 +78,45 @@ runs:
         IV_ENGINE: ${{ inputs.engine }}
       run: |
         set +e
-        args=(check --root "$GITHUB_WORKSPACE/$IV_ROOT")
+        case "$IV_ROOT" in /*) root="$IV_ROOT" ;; *) root="$GITHUB_WORKSPACE/$IV_ROOT" ;; esac
+        echo "root=$root" >> "$GITHUB_OUTPUT"
+        args=(check --root "$root")
         if [ "$IV_ENGINE" = "none" ]; then args+=(--no-engine); fi
         node "$GITHUB_ACTION_PATH/packages/cli/dist/index.js" "${args[@]}"
         echo "code=$?" >> "$GITHUB_OUTPUT"
     - id: report
       name: iv report
-      if: always()
+      if: always() && steps.check.outputs.root != ''
       shell: bash
       env:
-        IV_ROOT: ${{ inputs.root }}
+        IV_ROOT: ${{ steps.check.outputs.root }}
         IV_SARIF: ${{ inputs.sarif }}
       run: |
+        if [ ! -f "$IV_ROOT/.iv/check.json" ]; then
+          echo "::warning::iv check wrote no results, so there is no report."
+          exit 0
+        fi
         out="$RUNNER_TEMP/integration-verifier"
-        node "$GITHUB_ACTION_PATH/packages/cli/dist/index.js" report --root "$GITHUB_WORKSPACE/$IV_ROOT" --out "$out"
+        node "$GITHUB_ACTION_PATH/packages/cli/dist/index.js" report --root "$IV_ROOT" --out "$out"
+        mkdir -p "$(dirname "$GITHUB_WORKSPACE/$IV_SARIF")"
         cp "$out/report.sarif" "$GITHUB_WORKSPACE/$IV_SARIF"
         cat "$out/report.md" >> "$GITHUB_STEP_SUMMARY"
         echo "sarif=$IV_SARIF" >> "$GITHUB_OUTPUT"
-    - if: inputs.fail-on-findings == 'true' && steps.check.outputs.code != '0'
-      name: Gate
+    - name: Gate
+      if: always()
       shell: bash
       env:
         IV_CODE: ${{ steps.check.outputs.code }}
+        IV_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
       run: |
-        echo "::error::Integration Verifier gate failed (exit $IV_CODE). See the job summary or code scanning for the findings."
-        exit 1
+        case "$IV_CODE" in
+          0) exit 0 ;;
+          1)
+            if [ "$IV_FAIL_ON_FINDINGS" = "true" ]; then
+              echo "::error::Integration Verifier gate failed: blocking findings are open. See the job summary or code scanning."
+              exit 1
+            fi
+            echo "::warning::Blocking findings are open (fail-on-findings is false)." ;;
+          2) echo "::error::Integration Verifier could not run: invalid .iv/config.yaml or arguments (exit 2)."; exit 1 ;;
+          *) echo "::error::Integration Verifier failed with an internal error (exit ${IV_CODE:-none})."; exit 1 ;;
+        esac

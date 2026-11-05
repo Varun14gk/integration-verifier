@@ -15,7 +15,7 @@ it in `config.toml` and adds a short pointer to `AGENTS.md`. Then restart Codex,
 | `skills/*/SKILL.md` | The six shared skills |
 | `agents/*.toml` | The three read-only custom agents. Codex plugins can't carry agents, so `iv install --codex` writes them to `~/.codex/agents/` (or `.codex/agents/` with `--scope project`) |
 | `mcp.json` | The `integration-verifier` MCP server (stdio) |
-| `hooks/hooks.json` | `PostToolUse` on `apply_patch\|Edit\|Write`: fast check of the patched files as `additionalContext`. `Stop`: the full gate (`decision: block`), once per distinct set of blocking findings |
+| `hooks/hooks.json` | `PostToolUse` on `apply_patch\|Edit\|Write`: fast check of the patched files as `additionalContext`. `PreToolUse`: refuses edits to `.iv/`. `Stop`: the full gate (`decision: block`), fails closed, up to `gate.maxStopBlocks` times |
 | `scripts/iv-launch.mjs` | Copy of `adapters/shared/iv-launch.mjs` |
 
 Codex reports file edits as `apply_patch`; `iv hook codex post-write` reads the file paths from

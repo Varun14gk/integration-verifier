@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -11,6 +11,8 @@ import { describe, expect, it } from "vitest";
 import { VERSION } from "@integration-verifier/core";
 import { installClaudeCode, installLauncher, REPO_ROOT } from "../../packages/cli/src/install.js";
 
+/** One session per test run, so gate state left by earlier runs doesn't count. */
+const SESSION = `t-${process.pid}-${Date.now()}`;
 const ROOT = join(import.meta.dirname, "..", "..");
 const PLUGIN = join(ROOT, "adapters", "claude-code");
 const LAUNCHER = join(PLUGIN, "scripts", "iv-launch.mjs");
@@ -20,7 +22,7 @@ const json = (p: string) => JSON.parse(readFileSync(p, "utf8"));
 
 function hook(event: string, input: object, extraEnv: Record<string, string> = {}) {
   const r = spawnSync(process.execPath, [LAUNCHER, "hook", "claude-code", event], {
-    input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, IV_CLI: CLI, ...extraEnv }, timeout: 240_000,
+    input: JSON.stringify({ session_id: SESSION, ...input }), encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: "", GEMINI_PROJECT_DIR: "", IV_CLI: CLI, ...extraEnv }, timeout: 240_000,
   });
   return { code: r.status, out: r.stdout.trim() ? JSON.parse(r.stdout) : null };
 }
@@ -41,7 +43,9 @@ describe("Claude Code adapter files", () => {
 
   it("wires PostToolUse and Stop hooks through the launcher (exec form)", () => {
     const h = json(join(PLUGIN, "hooks", "hooks.json")).hooks;
-    expect(h.PostToolUse[0].matcher).toBe("Write|Edit|MultiEdit");
+    expect(h.PostToolUse[0].matcher).toBe("Write|Edit|MultiEdit|NotebookEdit");
+    expect(h.PreToolUse[0].matcher).toBe("Write|Edit|MultiEdit|NotebookEdit|Bash");
+    expect(h.PreToolUse[0].hooks[0].args.slice(1)).toEqual(["hook", "claude-code", "pre-write"]);
     expect(h.PostToolUse[0].hooks[0]).toMatchObject({ type: "command", command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs", "hook", "claude-code", "post-write"] });
     expect(h.Stop[0].hooks[0].args.slice(1)).toEqual(["hook", "claude-code", "stop"]);
   });
@@ -80,13 +84,13 @@ describe("Claude Code hooks", () => {
     expect(hook("post-write", { cwd: FIXTURE, tool_input: { file_path: join(tmpdir(), "x.ts") } }).out).toBeNull();
   }, 240_000);
 
-  it("stop blocks once per distinct set of blocking findings", () => {
+  it("stop keeps blocking while the same findings are open", () => {
     const first = hook("stop", { cwd: FIXTURE, stop_hook_active: false });
     expect(first.out.decision).toBe("block");
-    expect(first.out.reason).toContain("Do not dismiss on your own");
+    expect(first.out.reason).toContain("on your own");
     const again = hook("stop", { cwd: FIXTURE, stop_hook_active: true });
-    expect(again.out.decision).toBeUndefined();
-    expect(again.out.systemMessage).toContain("still open");
+    expect(again.out.decision).toBe("block");
+    expect(again.out.reason).toContain("attempt 2 of 5");
   }, 240_000);
 
   it("stays silent in projects without a frontend or backend", () => {
@@ -94,11 +98,12 @@ describe("Claude Code hooks", () => {
     expect(hook("stop", { cwd: empty })).toEqual({ code: 0, out: null });
   }, 240_000);
 
-  it("passes (exit 0) with a hint when the CLI is not installed", () => {
+  it("blocks the Stop gate (exit 2) with install steps when the CLI is missing", () => {
     const r = spawnSync(process.execPath, [LAUNCHER, "hook", "claude-code", "stop"], {
       input: "{}", encoding: "utf8", env: { ...process.env, IV_CLI: "", IV_HOME: mkdtempSync(join(tmpdir(), "iv-home-")), PATH: "" },
     });
-    expect(r.status).toBe(0);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("CLI was not found");
   });
 
   it("serves MCP tools through the launcher", async () => {
@@ -124,7 +129,7 @@ describe("iv install --claude-code", () => {
     expect(s.theme).toBe("dark");
     expect(s.enabledPlugins).toEqual({ "other@x": true, "integration-verifier@integration-verifier": true });
     expect(s.extraKnownMarketplaces["integration-verifier"]).toEqual({ source: { source: "directory", path: REPO_ROOT } });
-    expect(existsSync(join(home, ".claude", "settings.json.iv-backup"))).toBe(true);
+    expect(readdirSync(join(home, ".claude")).some((f) => f.startsWith("settings.json.iv-backup-"))).toBe(true);
     expect(installClaudeCode({ home }).changes[0]!.action).toBe("unchanged");
   });
 

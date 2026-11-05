@@ -1,6 +1,7 @@
 // Copyright 2026 The Integration Verifier Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseDocument } from "yaml";
@@ -87,8 +88,14 @@ export const ConfigSchema = z.strictObject({
     .strictObject({
       /** The Stop hook and CI fail while findings at or above this severity are open. */
       failOn: SeveritySchema.default("high"),
+      /**
+       * How many times in a row the agent's Stop/AfterAgent hook blocks on the same open
+       * findings before letting the session end (with a recorded override). 0 = no limit,
+       * leaving only the harness's own cap. The git hook and CI always block.
+       */
+      maxStopBlocks: z.number().int().min(0).default(5),
     })
-    .default({ failOn: "high" }),
+    .default({ failOn: "high", maxStopBlocks: 5 }),
   dismissals: z.array(DismissalSchema).default([]),
 });
 
@@ -140,6 +147,29 @@ export function loadConfig(root: string): LoadConfigResult {
     return { ok: true, config: ConfigSchema.parse({}), source: null };
   }
   return parseConfig(readFileSync(path, "utf8"), path);
+}
+
+export type PolicyResult =
+  | { ok: true; config: Config; source: "committed" | "working-tree" | "defaults"; uncommittedChanges: boolean }
+  | { ok: false; issues: ConfigIssue[]; source: string };
+
+/**
+ * The config the gate enforces. In a git repository where `.iv/config.yaml` is
+ * committed, the **committed** version is the policy: edits in the working tree
+ * (by a person or by an agent) don't weaken the gate until they are committed.
+ * A working copy that doesn't parse still fails, so a broken file can't disable checks.
+ */
+export function loadPolicy(root: string): PolicyResult {
+  const working = loadConfig(root);
+  if (!working.ok) return working;
+  const committed = spawnSync("git", ["show", `HEAD:./${IV_DIR}/${CONFIG_FILE}`], { cwd: root, encoding: "utf8", windowsHide: true });
+  if (committed.status !== 0) {
+    return { ok: true, config: working.config, source: working.source ? "working-tree" : "defaults", uncommittedChanges: false };
+  }
+  const policy = parseConfig(committed.stdout, `HEAD:${IV_DIR}/${CONFIG_FILE}`);
+  if (!policy.ok) return policy;
+  const workingText = existsSync(configPath(root)) ? readFileSync(configPath(root), "utf8") : "";
+  return { ok: true, config: policy.config, source: "committed", uncommittedChanges: workingText.replace(/\r\n/g, "\n") !== committed.stdout.replace(/\r\n/g, "\n") };
 }
 
 export interface NewDismissal {
@@ -231,6 +261,12 @@ scanner:
 gate:
   # The Stop hook and CI fail while findings at or above this severity are open.
   failOn: high
+  # Times in a row the agent's Stop hook blocks on the same findings before the session may
+  # end (recorded in .iv/gate-log.jsonl). 0 = no limit. The git hook and CI always block.
+  maxStopBlocks: 5
+
+# In a git repository the gate enforces the COMMITTED version of this file, so edits take
+# effect once committed. Agents are blocked from editing .iv/ directly.
 
 # Dismiss a finding with a recorded reason:
 # dismissals:

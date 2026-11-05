@@ -8,7 +8,10 @@
 //   1. IV_CLI: path to the CLI's index.js
 //   2. ~/.integration-verifier/cli.json, written by `iv install`
 //   3. `iv` on PATH
-// When nothing is found, hooks pass (exit 0) with a hint; other commands fail.
+// It fails closed. When the CLI is missing or dies (crash, signal, timeout), a gate
+// hook (`hook <harness> stop|pre-write`) exits 2, which blocks in every harness and
+// shows the reason; `post-write` exits 1, a visible but non-blocking error; any other
+// command exits 4 (internal error), which never means "findings".
 // The canonical copy is adapters/shared/iv-launch.mjs; each adapter ships its own copy.
 
 import { spawn } from "node:child_process";
@@ -18,12 +21,19 @@ import { delimiter, join } from "node:path";
 
 const args = process.argv.slice(2);
 const isHook = args[0] === "hook";
+const gateEvent = isHook && (args[2] === "stop" || args[2] === "pre-write");
+const failCode = gateEvent ? 2 : isHook ? 1 : 4;
+
+function fail(message) {
+  process.stderr.write(`Integration Verifier: ${message}\n`);
+  process.exit(failCode);
+}
 
 function fromConfig() {
   try {
     const home = process.env.IV_HOME || homedir();
     const c = JSON.parse(readFileSync(join(home, ".integration-verifier", "cli.json"), "utf8"));
-    if (c.cli && existsSync(c.cli)) return [c.node && existsSync(c.node) ? c.node : process.execPath, [c.cli, ...args]];
+    if (c.cli && existsSync(c.cli)) return [c.node && existsSync(c.node) ? c.node : process.execPath, [c.cli, ...args], false];
   } catch {
     /* not installed through iv install */
   }
@@ -38,19 +48,29 @@ function onPath() {
   return null;
 }
 
-function notFound() {
-  process.stderr.write(
-    "Integration Verifier CLI not found. Install it: clone https://github.com/Varun14gk/integration-verifier, " +
-      "run `npm ci && npm run build`, then `node packages/cli/dist/index.js install --all`.\n",
-  );
-  process.exit(isHook ? 0 : 1);
+/** cmd.exe needs every argument quoted, or paths with spaces split apart. */
+const cmdQuote = (a) => `"${String(a).replace(/"/g, '""')}"`;
+
+const NOT_FOUND =
+  "the CLI was not found, so this check could not run. Install it: clone https://github.com/Varun14gk/integration-verifier, " +
+  "run `npm ci && npm run build`, then `node packages/cli/dist/index.js install --all`. To stop these checks instead, disable the integration-verifier plugin or extension.";
+
+function resolveCommand() {
+  if (process.env.IV_CLI) return [process.execPath, [process.env.IV_CLI, ...args], false];
+  const configured = fromConfig();
+  if (configured) return configured;
+  const cli = onPath();
+  if (!cli) fail(NOT_FOUND);
+  const viaCmd = /\.(cmd|bat)$/i.test(cli);
+  return viaCmd ? [cmdQuote(cli), args.map(cmdQuote), true] : [cli, args, false];
 }
 
-const onPathCli = !process.env.IV_CLI && !fromConfig() ? onPath() : null;
-const [command, commandArgs, useShell] = process.env.IV_CLI
-  ? [process.execPath, [process.env.IV_CLI, ...args], false]
-  : (fromConfig() ?? (onPathCli ? [onPathCli, args, onPathCli.endsWith(".cmd") || onPathCli.endsWith(".bat")] : notFound()));
-
+const [command, commandArgs, useShell] = resolveCommand();
 const child = spawn(command, commandArgs, { stdio: "inherit", shell: useShell, windowsHide: true });
-child.on("error", notFound);
-child.on("exit", (code) => process.exit(code ?? (isHook ? 0 : 1)));
+child.on("error", () => fail(NOT_FOUND));
+child.on("exit", (code, signal) => {
+  if (signal || code === null) fail(`the CLI was stopped (${signal ?? "no exit code"}) before it finished, so this check did not complete.`);
+  // The Stop hook answers with 0 (JSON decision) or 2; anything else is a crash, which blocks.
+  if (args[2] === "stop" && code !== 0 && code !== 2) fail(`the CLI exited with an error (code ${code}), so the gate could not decide.`);
+  process.exit(code);
+});

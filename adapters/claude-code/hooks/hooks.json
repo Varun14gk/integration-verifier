@@ -1,14 +1,37 @@
 {
   "description": "Integration Verifier: fast check after each file write, full gate before Claude finishes",
   "hooks": {
-    "PostToolUse": [
+    "PreToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
         "hooks": [
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs", "hook", "claude-code", "post-write"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs",
+              "hook",
+              "claude-code",
+              "pre-write"
+            ],
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs",
+              "hook",
+              "claude-code",
+              "post-write"
+            ],
             "timeout": 60
           }
         ]
@@ -20,7 +43,12 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs", "hook", "claude-code", "stop"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs",
+              "hook",
+              "claude-code",
+              "stop"
+            ],
             "timeout": 300
           }
         ]

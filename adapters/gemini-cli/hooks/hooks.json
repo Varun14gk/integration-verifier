@@ -1,5 +1,19 @@
 {
   "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace|run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "name": "integration-verifier-protect-policy",
+            "description": "Keeps .iv/ (the gate policy and state) under the user's control",
+            "command": "node \"${extensionPath}${/}scripts${/}iv-launch.mjs\" hook gemini-cli pre-write",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
     "AfterTool": [
       {
         "matcher": "write_file|replace",
