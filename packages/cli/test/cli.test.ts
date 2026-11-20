@@ -117,5 +117,5 @@ describe("iv (built binary)", () => {
     expect(execFileSync(process.execPath, [BIN, "--version"], { encoding: "utf8" }).trim()).toBe(VERSION);
     const install = spawnSync(process.execPath, [BIN, "install"], { encoding: "utf8" });
     expect(install.status).toBe(EXIT.USAGE);
-  });
+  }, 60_000); // two cold starts of the built CLI; slow on a busy CI runner
 });
