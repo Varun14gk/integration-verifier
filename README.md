@@ -7,9 +7,9 @@ sensitive data leaks across those boundaries.
 It **informs, it doesn't rewire**: it reports what is connected, what is not, and the likely
 correct connection, with evidence and a confidence level. You decide what to change.
 
-> Status: pre-release 0.1.0. The core product is complete (see [Roadmap](#roadmap)); wider stack
-> coverage is in progress. It is not yet published
-> to npm or the agents' public plugin directories, so you install it from this repository.
+> Status: 0.1.0. The core product is complete (see [Roadmap](#roadmap)); wider stack coverage is
+> in progress. The CLI is on npm as [`integration-verifier`](https://www.npmjs.com/package/integration-verifier);
+> listings in the agents' public plugin directories are under review.
 
 ## Installation
 
@@ -35,6 +35,15 @@ The skills (six, each loaded only when the task matches): `integration-verifier`
 
 ### Step 1: Set up the CLI (once per machine)
 
+**From npm** (recommended):
+
+```sh
+npm install -g integration-verifier
+iv --version     # prints 0.1.0
+```
+
+**Or from source** (to follow `main` or contribute):
+
 ```sh
 git clone https://github.com/Varun14gk/integration-verifier
 cd integration-verifier
@@ -43,7 +52,7 @@ npm run build
 node packages/cli/dist/index.js --version     # prints 0.1.0
 ```
 
-Keep this folder: the agents run the CLI from here. In the commands below, `iv` means
+With a source install, keep this folder: the agents run the CLI from here. In the commands below, `iv` means
 `node <path-to>/integration-verifier/packages/cli/dist/index.js`. To type `iv` directly, run
 `npm link` in `packages/cli`.
 

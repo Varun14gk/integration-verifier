@@ -28,7 +28,8 @@ Everything runs **on your machine**. There is no server, no account and no telem
 ([privacy policy](https://github.com/Varun14gk/integration-verifier/blob/main/PRIVACY.md)).
 
 - **Runs:** `scripts/iv-launch.mjs` (readable source, in this folder) starts the Integration
-  Verifier CLI that you installed from https://github.com/Varun14gk/integration-verifier. It finds
+  Verifier CLI that you installed (`npm install -g integration-verifier`; source at
+  https://github.com/Varun14gk/integration-verifier). It finds
   it through `~/.integration-verifier/cli.json`, written by `iv install`, or `iv` on your PATH.
   The plugin does not download or install anything itself. If the CLI is missing, the session
   starts with a message saying how to install it, and the checks report that they couldn't run.

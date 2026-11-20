@@ -91,8 +91,21 @@ Extensions install from a GitHub repository or a local path
 no review step. Note that Google replaced Gemini CLI with Antigravity CLI for unpaid and Google
 One users on 2026-06-18.
 
-## npm (optional, recommended next)
+## npm
 
-Publishing `integration-verifier` to npm would let users skip the clone-and-build step, and let
-the plugins launch a pinned version (`npx integration-verifier@<version>`). That is a one-way public
-step, so it needs the maintainers' decision.
+Four packages, published together at the same version: `integration-verifier` (the `iv` CLI;
+it ships the harness adapters, so `iv install` works from an npm install) and the internal
+`@integration-verifier/core`, `@integration-verifier/runtime` and `@integration-verifier/mcp`.
+`npm run smoke:npm` (also a CI job) packs them, installs the tarballs into an empty project and
+runs the installed CLI, checks, installer dry runs, a hook and the MCP server.
+
+**Publish a version** (maintainers):
+1. Once: an npmjs.com account with two-factor authentication, and a free npm organisation
+   named `integration-verifier` (npmjs.com → Add Organization). The `@integration-verifier/*`
+   names can only be published by that organisation's members.
+2. `npm login`
+3. From a clean `main` at the release tag: `npm ci && npm run build && npm run smoke:npm`
+4. `npm publish --workspaces` (add `--otp <code>` if npm asks). It publishes core, runtime, mcp
+   and then the CLI. A published version can't be replaced, only deprecated, so bump the version
+   for any fix.
+5. Check: `npm view integration-verifier version` and `npx integration-verifier@<version> --version`.

@@ -59,8 +59,8 @@ function onPath() {
 const cmdQuote = (a) => `"${String(a).replace(/"/g, '""')}"`;
 
 const NOT_FOUND =
-  "the CLI was not found, so this check could not run. Install it: clone https://github.com/Varun14gk/integration-verifier, " +
-  "run `npm ci && npm run build`, then `node packages/cli/dist/index.js install --all`. To stop these checks instead, disable the integration-verifier plugin or extension.";
+  "the CLI was not found, so this check could not run. Install it: `npm install -g integration-verifier`, then `iv install --all` " +
+  "(details: https://github.com/Varun14gk/integration-verifier). To stop these checks instead, disable the integration-verifier plugin or extension.";
 
 function resolveCommand() {
   if (process.env.IV_CLI) return [process.execPath, [process.env.IV_CLI, ...args], false];
@@ -83,7 +83,7 @@ function sessionStart() {
   let problem = null;
   if (!found) problem = `the iv CLI is not installed, so its checks can't run and finishing will be blocked. ${NOT_FOUND.replace(/^the CLI was not found, so this check could not run\. /, "")}`;
   else if (c?.version && c.version !== PLUGIN_VERSION) {
-    problem = `the installed CLI is version ${c.version} but this plugin is ${PLUGIN_VERSION}. Update the clone (git pull, npm ci, npm run build) and run \`node packages/cli/dist/index.js install --all\` again.`;
+    problem = `the installed CLI is version ${c.version} but this plugin is ${PLUGIN_VERSION}. Update it: \`npm install -g integration-verifier@${PLUGIN_VERSION}\` (from a clone: git pull, npm ci, npm run build), then run \`iv install --all\` again.`;
   }
   if (problem) {
     const message = `Integration Verifier: ${problem}`;
