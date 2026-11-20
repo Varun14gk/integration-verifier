@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "licenses": "node scripts/check-licenses.mjs",
     "iv": "node packages/cli/dist/index.js",
-    "package:codex": "node scripts/package-codex-directory.mjs"
+    "package:codex": "node scripts/package-codex-directory.mjs",
+    "smoke:npm": "node scripts/smoke-npm.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

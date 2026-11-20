@@ -31,9 +31,9 @@ const TOOL_TO_CLI = [
 ];
 
 const EDITION_NOTE = `> **Directory edition.** In this edition the Integration Verifier tools are commands of the
-> \`iv\` CLI, which the user installs from https://github.com/Varun14gk/integration-verifier. Run them
+> \`iv\` CLI, which the user installs with \`npm install -g integration-verifier\`. Run them
 > in the project's terminal; read the output and the files they write under \`.iv/\`. If \`iv\` is not
-> installed, tell the user how to install it (see that page) instead of guessing results.
+> installed, tell the user how to install it (https://github.com/Varun14gk/integration-verifier) instead of guessing results.
 >
 > | Tool named below | Command |
 > |---|---|
@@ -73,7 +73,7 @@ export function directoryFiles() {
   };
   add(join(CODEX, "skills"), directorySkill);
   add(join(CODEX, "assets"));
-  files.set("README.md", readFileSync(join(CODEX, "README.md"), "utf8").replace(/^# .*$/m, "# Integration Verifier for Codex (directory edition)\n\nSkills only: no hooks and no MCP server, as the public plugin directory requires. The skills run the `iv` CLI, which you install from https://github.com/Varun14gk/integration-verifier. For the automatic gate, use the full plugin: `iv install --codex`."));
+  files.set("README.md", readFileSync(join(CODEX, "README.md"), "utf8").replace(/^# .*$/m, "# Integration Verifier for Codex (directory edition)\n\nSkills only: no hooks and no MCP server, as the public plugin directory requires. The skills run the `iv` CLI: `npm install -g integration-verifier`. For the automatic gate, use the full plugin: `iv install --codex`."));
   files.set("LICENSE", readFileSync(join(ROOT, "LICENSE"), "utf8"));
   return files;
 }

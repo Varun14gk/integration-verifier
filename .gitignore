@@ -10,3 +10,9 @@ coverage/
 # iv output files are generated; the config is meant to be committed
 **/.iv/*
 !**/.iv/config.yaml
+
+# npm pack copies (scripts/prepack.mjs)
+packages/*/LICENSE
+packages/cli/adapters/
+packages/cli/.claude-plugin/
+*.tgz
