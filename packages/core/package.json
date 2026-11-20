@@ -3,6 +3,28 @@
   "version": "0.1.0",
   "description": "Detection, mapping, data-flow and leak-check engine for Integration Verifier",
   "license": "Apache-2.0",
+  "author": "The Integration Verifier Authors",
+  "homepage": "https://github.com/Varun14gk/integration-verifier/tree/main/packages/core#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Varun14gk/integration-verifier.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Varun14gk/integration-verifier/issues"
+  },
+  "keywords": [
+    "api",
+    "integration",
+    "frontend",
+    "backend",
+    "openapi",
+    "data-leak",
+    "static-analysis"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,12 +36,20 @@
   },
   "files": [
     "dist",
-    "rules"
+    "rules",
+    "!dist/**/*.map"
   ],
   "dependencies": {
     "@vscode/tree-sitter-wasm": "0.3.1",
     "graphql": "17.0.2",
     "yaml": "2.9.1",
     "zod": "4.6.7"
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/prepack.mjs",
+    "postpack": "node ../../scripts/prepack.mjs --clean"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

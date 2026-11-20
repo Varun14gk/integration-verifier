@@ -3,11 +3,33 @@
   "version": "0.1.0",
   "description": "MCP server exposing Integration Verifier commands as tools",
   "license": "Apache-2.0",
+  "author": "The Integration Verifier Authors",
+  "homepage": "https://github.com/Varun14gk/integration-verifier/tree/main/packages/mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Varun14gk/integration-verifier.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/Varun14gk/integration-verifier/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "api",
+    "integration",
+    "claude-code",
+    "codex"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map"
   ],
   "dependencies": {
     "@integration-verifier/core": "0.1.0",
@@ -17,5 +39,12 @@
   },
   "bin": {
     "iv-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/prepack.mjs",
+    "postpack": "node ../../scripts/prepack.mjs --clean"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
