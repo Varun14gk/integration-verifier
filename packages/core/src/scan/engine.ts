@@ -33,10 +33,17 @@ function exec(cmd: string, args: string[], opts: { cwd?: string; timeoutMs?: num
   return new Promise((resolve) => {
     // semgrep.exe looks for pysemgrep next to itself, so put its folder on PATH.
     const env = { ...process.env, PATH: `${dirname(cmd)}${delimiter}${process.env.PATH ?? ""}`, SEMGREP_SEND_METRICS: "off" };
-    execFile(cmd, args, { cwd: opts.cwd, env, timeout: opts.timeoutMs ?? 600_000, maxBuffer: 256 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
-      const code = err && typeof (err as NodeJS.ErrnoException).code === "number" ? ((err as unknown as { code: number }).code) : err ? 1 : 0;
-      resolve({ code: (err as NodeJS.ErrnoException | null)?.code === "ENOENT" ? 127 : code, stdout, stderr });
-    });
+    try {
+      const child = execFile(cmd, args, { cwd: opts.cwd, env, timeout: opts.timeoutMs ?? 600_000, maxBuffer: 256 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+        const code = err && typeof (err as NodeJS.ErrnoException).code === "number" ? ((err as unknown as { code: number }).code) : err ? 1 : 0;
+        resolve({ code: (err as NodeJS.ErrnoException | null)?.code === "ENOENT" ? 127 : code, stdout, stderr });
+      });
+      child.on("error", (e) => resolve({ code: 127, stdout: "", stderr: e.message }));
+    } catch (e) {
+      // Some candidates can't be started at all (on Windows: "spawn UNKNOWN" for a file the
+      // OS refuses to run). That means "not this candidate", never a crash.
+      resolve({ code: 127, stdout: "", stderr: (e as Error).message });
+    }
   });
 }
 
