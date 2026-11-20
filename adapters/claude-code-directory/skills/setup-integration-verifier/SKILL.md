@@ -1,0 +1,71 @@
+---
+name: setup-integration-verifier
+description: Set up or tune Integration Verifier for a project by creating .iv/config.yaml, the outbound host allowlist, extra sensitive field names, the gate severity, runtime start commands and test data, separate frontend/backend repositories, and the git pre-commit hook or GitHub Actions gate. Use when the user asks to configure Integration Verifier, when iv_check reports an invalid config, or when findings show the defaults don't fit the project.
+---
+
+> **Directory edition.** In this edition the Integration Verifier tools are commands of the
+> `iv` CLI, which the user installs with `npm install -g integration-verifier`. Run them
+> in the project's terminal; read the output and the files they write under `.iv/`. If `iv` is not
+> installed, tell the user how to install it (https://github.com/Varun14gk/integration-verifier) instead of guessing results.
+>
+> | Tool named below | Command |
+> |---|---|
+> | `iv_detect` | `iv detect --root <project>` |
+> | `iv_map` | `iv map --root <project>` |
+> | `iv_flow` | `iv flow --root <project>` |
+> | `iv_check` | `iv check --root <project>` (add --files <changed files> for a quick check) |
+> | `iv_report` | `iv report --root <project>` |
+> | `iv_runtime_plan` | `iv runtime --root <project> --plan` |
+> | `iv_runtime` | `iv runtime --root <project> --yes` (only after the user approved every listed step) |
+> | `iv_dismiss` | `iv dismiss <finding-id> --reason "<the user's reason>" --root <project>` |
+>
+> There is no automatic gate in this edition: run `iv check` yourself after changing API
+> calls, routes or models, and before finishing.
+
+# Set up Integration Verifier for a project
+
+All settings live in `.iv/config.yaml`. Commit it; the other files in `.iv/` are generated.
+Propose changes and show them to the user before writing. These are the user's policy
+decisions.
+
+## Create the config
+
+Run `iv config init` in the project (it writes a commented template), or write the file directly.
+
+```yaml
+version: 1
+sensitive:
+  patterns: { health: ["diagnosis", "blood_type"] }   # extra names, added to the built-in ones
+  ignore: ["token_type"]                               # names that are never sensitive
+outbound:
+  allowlist: ["api.stripe.com", "*.sentry.io"]         # hosts the code may call
+scanner:
+  engine: auto            # auto | opengrep | semgrep | none
+gate:
+  failOn: high            # critical | high | medium | low | info
+runtime:                  # only for iv_runtime
+  backend:  { command: "uvicorn app.main:app --port 8000", cwd: backend, url: "http://localhost:8000/docs" }
+  frontend: { command: "npm run dev", cwd: frontend, url: "http://localhost:5173" }
+  testData: .iv/testdata.yaml
+dismissals: []            # written by iv_dismiss, with the user's reasons
+```
+
+Test data (`.iv/testdata.yaml`) holds **test-only** values typed into forms. Values whose names
+look sensitive are watched for leaks:
+
+```yaml
+fields: { email: tester@example.com, password: "Test-Only-Pa55!" }
+submitForms: false
+maxPages: 20
+```
+
+## Other setups
+
+- **Frontend and backend in separate repositories:** pass the other path in `also` to the tools
+  (CLI: `--also ../backend`).
+- **Projects without a coding agent:** `iv install --git-hook --root .` (pre-commit gate on
+  staged content, including breaks a commit causes elsewhere), `iv install --github-action --root .`
+  (CI gate with SARIF upload). `iv uninstall` with the same options removes them.
+- **In git, the gate enforces the committed `.iv/config.yaml`.** Commit config changes for them to
+  take effect.
+- **Check the config:** `iv config validate` names the exact key and line of any mistake.
