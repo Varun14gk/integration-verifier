@@ -10,5 +10,18 @@
   "homepage": "https://github.com/Varun14gk/integration-verifier",
   "repository": "https://github.com/Varun14gk/integration-verifier",
   "license": "Apache-2.0",
-  "keywords": ["integration", "api", "frontend", "backend", "security", "data-leaks", "contract"]
+  "keywords": [
+    "integration",
+    "api",
+    "frontend",
+    "backend",
+    "security",
+    "data-leaks",
+    "contract"
+  ],
+  "icon": "./assets/icon.svg",
+  "documentationUrl": "https://github.com/Varun14gk/integration-verifier#installation",
+  "supportUrl": "https://github.com/Varun14gk/integration-verifier/issues",
+  "privacyPolicyUrl": "https://github.com/Varun14gk/integration-verifier/blob/main/PRIVACY.md",
+  "termsOfServiceUrl": "https://github.com/Varun14gk/integration-verifier/blob/main/LICENSE"
 }
