@@ -13,6 +13,6 @@ export * from "./check/index.js";
 export * from "./check/sensitive.js";
 export * from "./flow/index.js";
 export * from "./report/index.js";
-export { findEngine, RULES_FILE, type PatternEngine, type PatternMatch } from "./scan/engine.js";
+export { findEngine, killEngineProcesses, RULES_FILE, type PatternEngine, type PatternMatch } from "./scan/engine.js";
 export { looksLikeSecret, splitCode, entropy } from "./scan/code-text.js";
 export { withTree, grammarFor, type SyntaxNode, type Grammar } from "./parse/tree-sitter.js";
