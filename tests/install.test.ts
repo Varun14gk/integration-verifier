@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -72,7 +72,7 @@ describe("install and uninstall", () => {
     writeFileSync(join(home, ".claude", "settings.json"), "{}");
     installClaudeCode({ home });
     uninstallClaudeCode({ home });
-    const backups = spawnSync("ls", [join(home, ".claude")], { encoding: "utf8" }).stdout.split(/\s+/).filter((f) => f.includes(".iv-backup-"));
+    const backups = readdirSync(join(home, ".claude")).filter((f) => f.includes(".iv-backup-"));
     expect(backups.length).toBeGreaterThanOrEqual(1);
   });
 
