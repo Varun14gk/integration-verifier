@@ -13,42 +13,13 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
+import { directorySkill } from "./directory-edition.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 const CODEX = join(ROOT, "adapters", "codex");
 const VERSION = /export const VERSION = "([^"]+)"/.exec(readFileSync(join(ROOT, "packages", "core", "src", "version.ts"), "utf8"))[1];
 
-/** How each MCP tool is used from the CLI in this edition. */
-const TOOL_TO_CLI = [
-  ["iv_detect", "iv detect --root <project>"],
-  ["iv_map", "iv map --root <project>"],
-  ["iv_flow", "iv flow --root <project>"],
-  ["iv_check", "iv check --root <project> (add --files <changed files> for a quick check)"],
-  ["iv_report", "iv report --root <project>"],
-  ["iv_runtime_plan", "iv runtime --root <project> --plan"],
-  ["iv_runtime", "iv runtime --root <project> --yes, only after the user approved every listed step"],
-  ["iv_dismiss", "iv dismiss <finding-id> --reason \"<the user's reason>\" --root <project>"],
-];
-
-const EDITION_NOTE = `> **Directory edition.** In this edition the Integration Verifier tools are commands of the
-> \`iv\` CLI, which the user installs with \`npm install -g integration-verifier\`. Run them
-> in the project's terminal; read the output and the files they write under \`.iv/\`. If \`iv\` is not
-> installed, tell the user how to install it (https://github.com/Varun14gk/integration-verifier) instead of guessing results.
->
-> | Tool named below | Command |
-> |---|---|
-${TOOL_TO_CLI.map(([t, c]) => `> | \`${t}\` | \`${c.replace(/ \(.*\)$|, only.*$/, "")}\`${/\(|only/.test(c) ? ` (${c.match(/\((.*)\)|(only.*)$/).slice(1).find(Boolean)})` : ""} |`).join("\n")}
->
-> There is no automatic gate in this edition: run \`iv check\` yourself after changing API
-> calls, routes or models, and before finishing.
-`;
-
-/** Puts the edition note right after a skill's frontmatter. */
-export function directorySkill(text) {
-  const m = /^(---\n[\s\S]*?\n---\n)([\s\S]*)$/.exec(text.replace(/\r\n/g, "\n"));
-  if (!m) throw new Error("skill without frontmatter");
-  return `${m[1]}\n${EDITION_NOTE}\n${m[2].replace(/^\n+/, "")}`;
-}
+export { directorySkill };
 
 /** The directory manifest: the Codex manifest without hooks and MCP, marked as local. */
 export function directoryManifest() {
