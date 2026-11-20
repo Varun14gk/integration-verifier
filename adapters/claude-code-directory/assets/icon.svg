@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Integration Verifier">
+  <!-- Copyright 2026 The Integration Verifier Authors. SPDX-License-Identifier: Apache-2.0 -->
+  <rect width="128" height="128" rx="28" fill="#1F4E79"/>
+  <rect x="18" y="30" width="34" height="26" rx="6" fill="#FFFFFF"/>
+  <rect x="76" y="72" width="34" height="26" rx="6" fill="#FFFFFF"/>
+  <path d="M52 43 H64 V85 H76" fill="none" stroke="#8FD3FF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="98" cy="38" r="17" fill="#2EB67D"/>
+  <path d="M90 38 l6 6 l11 -12" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

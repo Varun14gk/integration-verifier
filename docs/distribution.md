@@ -5,44 +5,56 @@ before submitting; they change.
 
 ## Claude Code: Anthropic's plugin directory
 
-**Ready to submit, expect a manual review.**
+**Submit the directory edition: `adapters/claude-code-directory`.**
 
-| Rule | Status |
-|---|---|
-| `claude plugin validate --strict` on the plugin and the marketplace | ✅ passes (Claude Code 2.1.289) |
-| Name `integration-verifier`: lowercase-hyphen, ≤ 64, not a reserved word | ✅ |
-| README ≥ 40 words, describing everything the plugin runs, writes and sends | ✅ (`What this plugin runs, writes and sends`) |
-| License (`plugin.json` `license: Apache-2.0`) | ✅ |
-| Text/SVG files only, each < 256 KiB, ≤ 512 files, no symlinks, portable names | ✅ |
-| Hook and MCP commands start a file in the plugin with `${CLAUDE_PLUGIN_ROOT}`, no other variables | ✅ (PR 17 removed `${CLAUDE_PROJECT_DIR}` from `.mcp.json`) |
-| Skills and agents have YAML frontmatter with a text `description` | ✅ |
-| Listing fields: `icon`, `documentationUrl`, `supportUrl`, `privacyPolicyUrl`, `termsOfServiceUrl` | ✅ |
-| Readable source (no minified code) | ✅ |
+The directory's validator (run on `main` @ f51b7a4, 2026-11-21) refused the full plugin
+(`adapters/claude-code`) with three blocking findings. All three apply because the publishing
+organisation isn't *Verified*:
 
-`tests/adapters/directory-preflight.test.ts` checks all of the above on every PR.
+1. command hooks (of any type) are accepted only from Verified organisations;
+2. MCP servers that run on the user's computer are accepted only from Verified organisations;
+3. scripts, programs and other restricted files (our `scripts/iv-launch.mjs`) likewise.
 
-**Verified install from GitHub** (2026-11-20, isolated Claude Code config): `claude plugin
-marketplace add Varun14gk/integration-verifier` and `claude plugin install
-integration-verifier@integration-verifier` install and enable v0.1.0, with 6 skills, 3 agents,
-4 hooks (SessionStart, PreToolUse, PostToolUse, Stop) and the MCP server. About 970 tokens are
-added to each session; skills and agents cost more only when used.
+So, as for Codex, there are two editions:
 
-**Expected hold:** the plugin's launcher starts the Integration Verifier CLI, which users install
-separately from this repository. The rules don't forbid that, but scripts that start other
-programs are held for a reviewer. The README discloses it. To remove the hold later, publish
-the CLI to npm and launch a pinned version, or bundle the engine into the plugin. Bundling is
-blocked today by the directory's 256 KiB-per-file and binary-file limits, because the engine
-ships WebAssembly grammars.
+| | Full plugin `adapters/claude-code` | Directory edition `adapters/claude-code-directory` |
+|---|---|---|
+| Skills (6) and read-only agents (3) | ✅ | ✅, with a note mapping the tools to `iv` CLI commands |
+| MCP tools | ✅ | ❌, Claude runs `iv` through its Bash tool instead |
+| Fast check after each write, `.iv/` protection, gate before finishing | ✅ (hooks) | ❌, the skills tell Claude to run `iv check` itself |
+| Installed by | `iv install --claude-code` or `/plugin marketplace add Varun14gk/integration-verifier` | the plugin directory |
+
+`scripts/sync-adapters.mjs` generates the directory edition from `adapters/shared`, so the two
+never drift. `tests/adapters/directory-preflight.test.ts` checks that it has no hooks, MCP
+server, scripts or inline shell, and only Markdown, JSON and the listing icon;
+`claude plugin validate --strict adapters/claude-code-directory` passes.
+
+The validator's other notes, for the record:
+- **held for review:** the name "integration-verifier" is close to the existing "certifier"
+  connector. Nothing to change; a reviewer looks at it.
+- warnings only: it couldn't inspect the full plugin's hook commands, which don't exist in the
+  directory edition; the `icon` field is read by the directory only; and one manifest field it
+  doesn't recognise (all our extra fields are listing fields: `displayName`, `icon`,
+  `documentationUrl`, `supportUrl`, `privacyPolicyUrl`, `termsOfServiceUrl`).
+
+**To list the full plugin later:** get the organisation Verified. A Verified organisation can
+ship hooks and a local MCP server whose commands are plain shell scripts at literal
+`${CLAUDE_PLUGIN_ROOT}` paths, with no package launcher (npx and the like), no package installs
+and no variables other than `CLAUDE_PLUGIN_ROOT`. The current hooks run `node`, so that
+submission would need small shell wrappers, and it can still be held for review.
+
+**Other rules, all met:** lowercase-hyphen name of at most 64 characters, a README of at least
+40 words disclosing what the plugin runs, writes and sends, a license, text files under
+256 KiB, YAML frontmatter on skills and agents, https listing URLs.
 
 **How to submit**
-1. The repository must be public on github.com (it is).
-2. On a paid claude.ai plan, connect GitHub, then go to https://claude.ai/directory/manage →
+1. On a paid claude.ai plan, connect GitHub, then go to https://claude.ai/directory/manage →
    **Submit new** → **Plugin bundle**.
-3. Source: `Varun14gk/integration-verifier`, plugin path `adapters/claude-code`, branch `main`.
-   **Validate**, then fix anything marked *Blocks*.
-4. Data handling: it reads the user's project locally, sends nothing, keeps nothing beyond
+2. Source: `Varun14gk/integration-verifier`, plugin path **`adapters/claude-code-directory`**,
+   branch `main`. **Validate**, then fix anything marked *Blocks*.
+3. Data handling: it reads the user's project locally, sends nothing, keeps nothing beyond
    `.iv/` in the project, and is not aimed at people under 18.
-5. Add a contact email, accept the acknowledgements, and submit.
+4. Add a contact email, accept the acknowledgements, and submit.
 
 ## Codex: OpenAI's public plugin directory
 

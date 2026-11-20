@@ -1,0 +1,27 @@
+{
+  "name": "integration-verifier",
+  "displayName": "Integration Verifier",
+  "version": "0.1.0",
+  "description": "Checks that your frontend, backend and APIs are actually connected, and that no sensitive data leaks across them. Skills and read-only agents that run the Integration Verifier CLI (npm install -g integration-verifier); reports with evidence and never rewires your code.",
+  "author": {
+    "name": "The Integration Verifier Authors",
+    "url": "https://github.com/Varun14gk/integration-verifier"
+  },
+  "homepage": "https://github.com/Varun14gk/integration-verifier",
+  "repository": "https://github.com/Varun14gk/integration-verifier",
+  "license": "Apache-2.0",
+  "keywords": [
+    "integration",
+    "api",
+    "frontend",
+    "backend",
+    "security",
+    "data-leaks",
+    "contract"
+  ],
+  "icon": "./assets/icon.svg",
+  "documentationUrl": "https://github.com/Varun14gk/integration-verifier#installation",
+  "supportUrl": "https://github.com/Varun14gk/integration-verifier/issues",
+  "privacyPolicyUrl": "https://github.com/Varun14gk/integration-verifier/blob/main/PRIVACY.md",
+  "termsOfServiceUrl": "https://github.com/Varun14gk/integration-verifier/blob/main/LICENSE"
+}

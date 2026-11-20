@@ -99,6 +99,47 @@ describe("Claude Code plugin directory rules", () => {
   });
 });
 
+// What Anthropic's directory validator refused from an unverified organisation (2026-11-21):
+// command hooks of any type, local MCP servers, and scripts or other restricted files. The
+// directory edition must stay inside that.
+describe("Claude Code directory edition (adapters/claude-code-directory)", () => {
+  const DIR = join(ROOT, "adapters", "claude-code-directory");
+  const files = walk(DIR).map((f) => relative(DIR, f).split("\\").join("/"));
+  const m = json(join(DIR, ".claude-plugin", "plugin.json"));
+
+  it("has no hooks, no MCP server and no scripts", () => {
+    expect(files.filter((f) => /^(hooks|scripts|bin|commands|monitors)\//.test(f) || /(^|\/)\.?mcp\.json$/.test(f) || f === "settings.json")).toEqual([]);
+    for (const k of ["hooks", "mcpServers", "commands", "monitors", "settings", "lspServers", "outputStyles"]) expect(m[k], k).toBeUndefined();
+  });
+
+  it("contains only Markdown, JSON and the listing icon", () => {
+    for (const f of files) expect(f, f).toMatch(/\.(md|json)$|^assets\/icon\.svg$/);
+    expect(m.icon).toBe("./assets/icon.svg");
+  });
+
+  it("no skill or agent uses inline shell (!`command`)", () => {
+    for (const f of files.filter((x) => x.endsWith(".md"))) expect(readFileSync(join(DIR, f), "utf8"), f).not.toMatch(/!`/);
+  });
+
+  it("has every skill and agent, each telling the agent to use the iv CLI", () => {
+    expect(files.filter((f) => f.endsWith("SKILL.md"))).toHaveLength(readdirSync(join(ROOT, "adapters", "shared", "skills")).length);
+    expect(files.filter((f) => f.startsWith("agents/"))).toHaveLength(readdirSync(join(ROOT, "adapters", "shared", "agents")).length);
+    for (const f of files.filter((x) => /^(skills|agents)\//.test(x))) {
+      const text = readFileSync(join(DIR, f), "utf8");
+      expect(text, f).toContain("**Directory edition.**");
+      expect(text, f).toContain("npm install -g integration-verifier");
+    }
+  });
+
+  it("same name, version and listing fields as the full plugin; README discloses what it runs", () => {
+    const full = json(join(CLAUDE, ".claude-plugin", "plugin.json"));
+    for (const k of ["name", "version", "license", "author", "homepage", "documentationUrl", "supportUrl", "privacyPolicyUrl", "termsOfServiceUrl"]) expect(m[k], k).toEqual(full[k]);
+    const readme = readFileSync(join(DIR, "README.md"), "utf8");
+    expect(proseWords(readme)).toBeGreaterThanOrEqual(40);
+    expect(readme).toContain("What this plugin runs, writes and sends");
+  });
+});
+
 describe("Codex plugin manifest rules", () => {
   const m = json(join(CODEX, ".codex-plugin", "plugin.json"));
   const i = m.interface;
