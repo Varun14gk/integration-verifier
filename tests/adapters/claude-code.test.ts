@@ -66,11 +66,11 @@ describe("Claude Code adapter files", () => {
 
   const hasClaude = spawnSync("claude", ["--version"], { encoding: "utf8", shell: process.platform === "win32" }).status === 0;
   it.skipIf(!hasClaude)("passes `claude plugin validate`", () => {
-    for (const target of [PLUGIN, ROOT]) {
+    for (const target of [PLUGIN, join(ROOT, "adapters", "claude-code-directory"), ROOT]) {
       const out = execFileSync("claude", ["plugin", "validate", target], { encoding: "utf8", shell: process.platform === "win32" });
       expect(out).toContain("Validation passed");
     }
-  });
+  }, 120_000);
 });
 
 describe("Claude Code hooks", () => {
