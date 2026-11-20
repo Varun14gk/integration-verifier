@@ -11,7 +11,8 @@ import {
   formatStackSummary, indexUi, IV_DIR, loadConfig, runCheck, toMarkdown, toSarif, VERSION, writeOutput, type CheckReport, type Config,
 } from "@integration-verifier/core";
 import { planSteps, runRuntime, RuntimeConfigError, type RuntimeReport } from "@integration-verifier/runtime";
-import { serveStdio } from "@integration-verifier/mcp";
+import { defaultMcpRoot, serveStdio } from "@integration-verifier/mcp";
+import { doctor, formatDoctor } from "./doctor.js";
 import { checkStaged } from "./staged.js";
 import { HARNESSES, HOOK_EVENTS, runHook, type Harness, type HookEvent } from "./hooks.js";
 import {
@@ -314,11 +315,22 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     });
 
   program
+    .command("doctor")
+    .description("check the machine, a project and the agent installs, and say what to fix (changes nothing)")
+    .option("-r, --root <dir>", "project to check", ".")
+    .option("--json", "print the checks as JSON")
+    .action(async (opts: { root: string; json?: boolean }) => {
+      const checks = await doctor(resolve(opts.root));
+      io.out(opts.json ? JSON.stringify(checks, null, 2) + "\n" : formatDoctor(checks));
+      if (checks.some((c) => c.status === "fail")) result.code = EXIT.FINDINGS;
+    });
+
+  program
     .command("mcp")
     .description("serve the iv tools over MCP (stdio) for coding agents")
-    .option("-r, --root <dir>", "default project root for tool calls", ".")
-    .action(async (opts: { root: string }) => {
-      await serveStdio(resolve(opts.root));
+    .option("-r, --root <dir>", "default project root for tool calls (default: the agent's project directory, else the current directory)")
+    .action(async (opts: { root?: string }) => {
+      await serveStdio(resolve(opts.root ?? defaultMcpRoot()));
       // Keep running until the client closes stdin.
       await new Promise<void>((done) => process.stdin.on("close", () => done()));
     });
