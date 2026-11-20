@@ -1,5 +1,18 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "name": "integration-verifier-setup-check",
+            "description": "Checks that the iv CLI is installed and matches this extension",
+            "command": "node \"${extensionPath}${/}scripts${/}iv-launch.mjs\" hook gemini-cli session-start",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
     "BeforeTool": [
       {
         "matcher": "write_file|replace|run_shell_command",

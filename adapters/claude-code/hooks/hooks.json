@@ -1,6 +1,23 @@
 {
-  "description": "Integration Verifier: fast check after each file write, full gate before Claude finishes",
+  "description": "Integration Verifier: setup check at session start, protects .iv/, fast check after each file write, full gate before Claude finishes",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs",
+              "hook",
+              "claude-code",
+              "session-start"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",

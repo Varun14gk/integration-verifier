@@ -48,11 +48,13 @@ describe("Claude Code adapter files", () => {
     expect(h.PreToolUse[0].hooks[0].args.slice(1)).toEqual(["hook", "claude-code", "pre-write"]);
     expect(h.PostToolUse[0].hooks[0]).toMatchObject({ type: "command", command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs", "hook", "claude-code", "post-write"] });
     expect(h.Stop[0].hooks[0].args.slice(1)).toEqual(["hook", "claude-code", "stop"]);
+    expect(h.SessionStart[0].hooks[0].args.slice(1)).toEqual(["hook", "claude-code", "session-start"]);
   });
 
   it("starts the MCP server through the launcher with the project dir", () => {
     const s = json(join(PLUGIN, ".mcp.json")).mcpServers["integration-verifier"];
-    expect(s.args).toEqual(["${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs", "mcp", "--root", "${CLAUDE_PROJECT_DIR}"]);
+    // No --root: the directory allows only ${CLAUDE_PLUGIN_ROOT} in MCP args; the server reads CLAUDE_PROJECT_DIR itself.
+    expect(s.args).toEqual(["${CLAUDE_PLUGIN_ROOT}/scripts/iv-launch.mjs", "mcp"]);
   });
 
   it("ships a skill with frontmatter and the shared launcher", () => {

@@ -16,6 +16,7 @@
     "@integration-verifier/core": "0.1.0",
     "commander": "15.0.0",
     "@integration-verifier/runtime": "0.1.0",
-    "@integration-verifier/mcp": "0.1.0"
+    "@integration-verifier/mcp": "0.1.0",
+    "playwright": "1.64.1"
   }
 }

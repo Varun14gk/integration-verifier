@@ -165,6 +165,11 @@ iv uninstall --git-hook --root path/to/project
 
 ### Troubleshooting
 
+Start with **`iv doctor --root path/to/project`**. It checks Node, the CLI the agents use,
+the pattern engine, the browser, the config, git and each agent's install, and says what to fix.
+It changes nothing.
+
+
 - **"Integration Verifier CLI not found"** in agent output: Step 1 wasn't run on this machine, or
   the clone was moved. Run `iv install --all` again from the clone; it updates
   `~/.integration-verifier/cli.json`.
@@ -281,6 +286,7 @@ an agent has to show the plan to the user first. `iv_dismiss` records the user's
 | `iv dismiss <id> --reason …` | Accept a finding, with the reason recorded in config | ✅ |
 | `iv mcp` | Serve the tools over MCP (stdio) | ✅ |
 | `iv uninstall` | Remove exactly what `iv install` added | ✅ |
+| `iv doctor` | Check the machine, a project and the agent installs | ✅ |
 
 Exit codes: `0` OK, `1` findings at or above the gate severity, `2` usage or config error,
 `4` internal error. Hooks and CI treat anything but `0` and `1` as "could not check".
@@ -341,6 +347,14 @@ Each fixture is a deliberately broken app with an `expected.json` answer key. Th
     gorilla/mux; actix, axum, Rocket; Phoenix; more ASP.NET Core
 18. Mobile frontends: Android (Retrofit/OkHttp), iOS (URLSession/Alamofire), Flutter (http/dio)
 19. A fixture for each stack family
+
+## Privacy, security and distribution
+
+- [PRIVACY.md](PRIVACY.md): everything runs locally, with no server, account or telemetry.
+- [SECURITY.md](SECURITY.md): report vulnerabilities privately through GitHub.
+- [docs/distribution.md](docs/distribution.md): status for Claude Code's plugin directory (ready,
+  expect a manual review), Codex (manual install only, as its public directory excludes hooks and
+  local MCP servers) and Gemini CLI.
 
 ## License
 

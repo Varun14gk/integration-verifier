@@ -59,9 +59,28 @@ export function expectedFiles() {
   const files = new Map();
   for (const m of MANIFESTS) {
     const text = readFileSync(join(ROOT, m), "utf8");
-    files.set(m, text.replace(/("version"s*:s*")[^"]*(")/, `$1${VERSION}$2`));
+    if (!/"version"\s*:\s*"/.test(text)) throw new Error(`${m} has no "version" field`);
+    files.set(m, text.replace(/("version"\s*:\s*")[^"]*(")/, `$1${VERSION}$2`));
   }
-  const launcher = readFileSync(join(SHARED, "iv-launch.mjs"), "utf8");
+  // The launcher reports version skew between plugin and CLI, so it carries the version too.
+  const launcherSrc = readFileSync(join(SHARED, "iv-launch.mjs"), "utf8");
+  if (!/^const PLUGIN_VERSION = "[^"]*";$/m.test(launcherSrc)) throw new Error("iv-launch.mjs has no PLUGIN_VERSION line");
+  const launcher = launcherSrc.replace(/^const PLUGIN_VERSION = "[^"]*";$/m, `const PLUGIN_VERSION = "${VERSION}";`);
+  files.set(join("adapters", "shared", "iv-launch.mjs"), launcher);
+  // Listing icon for the plugins that have one (Claude Code directory, Codex interface).
+  const icon = readFileSync(join(SHARED, "assets", "icon.svg"), "utf8");
+  files.set(join("adapters", "claude-code", "assets", "icon.svg"), icon);
+  files.set(join("adapters", "codex", "assets", "icon.svg"), icon);
+  // The same "what this plugin runs, writes and sends" section in every plugin README.
+  const disclosure = readFileSync(join(SHARED, "DISCLOSURE.md"), "utf8").trim();
+  for (const adapter of ADAPTERS) {
+    const readme = join("adapters", adapter, "README.md");
+    const text = readFileSync(join(ROOT, readme), "utf8");
+    const m = /<!-- disclosure:start -->[\s\S]*?<!-- disclosure:end -->/.exec(text);
+    if (!m) throw new Error(`${readme} has no disclosure markers`);
+    // A function replacement, so `$` in the text is never treated as a pattern.
+    files.set(readme, text.replace(m[0], () => `<!-- disclosure:start -->\n${disclosure}\n<!-- disclosure:end -->`));
+  }
   const skills = readdirSync(join(SHARED, "skills"), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
   const agents = readdirSync(join(SHARED, "agents")).filter((f) => f.endsWith(".md")).sort().map((f) => parseAgent(readFileSync(join(SHARED, "agents", f), "utf8")));
   for (const adapter of ADAPTERS) {

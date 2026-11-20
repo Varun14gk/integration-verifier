@@ -19,6 +19,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 
+/** Version of the plugin this launcher ships in; set by scripts/sync-adapters.mjs. */
+const PLUGIN_VERSION = "0.1.0";
+
 const args = process.argv.slice(2);
 const isHook = args[0] === "hook";
 const gateEvent = isHook && (args[2] === "stop" || args[2] === "pre-write");
@@ -29,14 +32,18 @@ function fail(message) {
   process.exit(failCode);
 }
 
-function fromConfig() {
+function readCliConfig() {
   try {
     const home = process.env.IV_HOME || homedir();
-    const c = JSON.parse(readFileSync(join(home, ".integration-verifier", "cli.json"), "utf8"));
-    if (c.cli && existsSync(c.cli)) return [c.node && existsSync(c.node) ? c.node : process.execPath, [c.cli, ...args], false];
+    return JSON.parse(readFileSync(join(home, ".integration-verifier", "cli.json"), "utf8"));
   } catch {
-    /* not installed through iv install */
+    return null; // not installed through iv install
   }
+}
+
+function fromConfig() {
+  const c = readCliConfig();
+  if (c?.cli && existsSync(c.cli)) return [c.node && existsSync(c.node) ? c.node : process.execPath, [c.cli, ...args], false];
   return null;
 }
 
@@ -64,6 +71,32 @@ function resolveCommand() {
   const viaCmd = /\.(cmd|bat)$/i.test(cli);
   return viaCmd ? [cmdQuote(cli), args.map(cmdQuote), true] : [cli, args, false];
 }
+
+/**
+ * `hook <harness> session-start`: answered here, without starting the CLI, so it is
+ * instant. It tells the user (and the agent) at the start of a session when the CLI is
+ * missing or a different version than this plugin, instead of failing at the gate later.
+ */
+function sessionStart() {
+  const c = readCliConfig();
+  const found = process.env.IV_CLI || (c?.cli && existsSync(c.cli)) || onPath();
+  let problem = null;
+  if (!found) problem = `the iv CLI is not installed, so its checks can't run and finishing will be blocked. ${NOT_FOUND.replace(/^the CLI was not found, so this check could not run\. /, "")}`;
+  else if (c?.version && c.version !== PLUGIN_VERSION) {
+    problem = `the installed CLI is version ${c.version} but this plugin is ${PLUGIN_VERSION}. Update the clone (git pull, npm ci, npm run build) and run \`node packages/cli/dist/index.js install --all\` again.`;
+  }
+  if (problem) {
+    const message = `Integration Verifier: ${problem}`;
+    const harness = args[1];
+    const out = harness === "codex"
+      ? { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: message } }
+      : { systemMessage: message, hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: message } };
+    process.stdout.write(JSON.stringify(out) + "\n");
+  }
+  process.exit(0);
+}
+
+if (isHook && args[2] === "session-start") sessionStart();
 
 const [command, commandArgs, useShell] = resolveCommand();
 const child = spawn(command, commandArgs, { stdio: "inherit", shell: useShell, windowsHide: true });
