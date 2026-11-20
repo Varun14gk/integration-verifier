@@ -21,6 +21,12 @@ before submitting; they change.
 
 `tests/adapters/directory-preflight.test.ts` checks all of the above on every PR.
 
+**Verified install from GitHub** (2026-11-20, isolated Claude Code config): `claude plugin
+marketplace add Varun14gk/integration-verifier` and `claude plugin install
+integration-verifier@integration-verifier` install and enable v0.1.0, with 6 skills, 3 agents,
+4 hooks (SessionStart, PreToolUse, PostToolUse, Stop) and the MCP server. About 970 tokens are
+added to each session; skills and agents cost more only when used.
+
 **Expected hold:** the plugin's launcher starts the Integration Verifier CLI, which users install
 separately from this repository. The rules don't forbid that, but scripts that start other
 programs are held for a reviewer. The README discloses it. To remove the hold later, publish
@@ -50,11 +56,33 @@ The published rules exclude it on two counts:
    partners"* and appear as *Desktop only*. Integration Verifier has to read your local code, so
    it can't be a remote HTTPS service.
 
-**What would be needed for a listing:** OpenAI partner allowlisting for a local MCP server, plus
-a hook-free variant (skills and MCP tools only, losing the automatic gate). A listing also needs
-a demo video, five positive and three negative test cases, and a verified developer
-organisation. The manifest already has the listing fields (`interface` with icon, links,
-category, capabilities and prompts within the length limits), checked by the same preflight test.
+**What can be submitted: the directory edition.** `npm run package:codex` builds
+`dist/integration-verifier-codex-directory-<version>.zip` (it's also attached to each GitHub
+release):
+
+- skills only: **no hooks and no MCP server**, so the portal's hook check passes;
+- each skill starts with a note mapping the tools to `iv` CLI commands, because there's no MCP server;
+- the manifest keeps the listing fields and sets `extensions.com.openai.requires_local_executor: true`,
+  because the skills run a local program.
+
+It has **no automatic gate**: the agent runs `iv check` itself. OpenAI says local-execution
+plugins can be rejected unless the organisation has that access, so this may still need OpenAI's
+approval. `tests/adapters/codex-directory.test.ts` checks the package on every PR.
+
+**How to submit the directory edition**
+1. platform.openai.com → organisation settings: complete individual or business **verification**.
+   An organisation owner (or a member with "Apps Management Write") submits.
+2. platform.openai.com/plugins → **Upload new or existing plugin** → choose the verified developer
+   identity → upload the ZIP.
+3. Fix anything the automated checks flag under *Metadata & Skills*, rebuild the ZIP and re-upload.
+   Wait for the required skill scans to finish.
+4. Fill in the review information, submit with the policy attestations, and publish when approved.
+   Rejections arrive by email; reply to appeal.
+5. If the portal refuses local execution, ask OpenAI about partner access for local plugins. Your
+   organisation ID is in the platform settings.
+
+**The full Codex plugin** (hooks + MCP: the automatic gate) remains manual install:
+`iv install --codex`.
 
 ## Gemini CLI
 
