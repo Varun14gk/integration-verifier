@@ -1,7 +1,7 @@
 // Copyright 2026 The Integration Verifier Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { execFile } from "node:child_process";
+import { type ChildProcess, execFile, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
@@ -29,16 +29,45 @@ export interface PatternEngine {
 /** Our rule file, shipped with the package. */
 export const RULES_FILE = fileURLToPath(new URL("../../rules/iv-rules.yaml", import.meta.url));
 
-function exec(cmd: string, args: string[], opts: { cwd?: string; timeoutMs?: number } = {}): Promise<{ code: number; stdout: string; stderr: string }> {
+/** Engine processes still running, so a caller that gives up can stop them. */
+const running = new Set<ChildProcess>();
+
+/**
+ * Stops every engine process this process started that is still running. Hooks call it
+ * when their time budget runs out, so an abandoned scan doesn't keep using the machine.
+ */
+export function killEngineProcesses(): void {
+  for (const child of running) {
+    try {
+      if (process.platform === "win32" && child.pid) {
+        // semgrep.exe starts pysemgrep and its workers; kill the whole tree.
+        spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+      } else {
+        child.kill("SIGKILL");
+      }
+    } catch {
+      // Already gone.
+    }
+  }
+  running.clear();
+}
+
+/** Runs an engine command (exported for tests). */
+export function exec(cmd: string, args: string[], opts: { cwd?: string; timeoutMs?: number } = {}): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     // semgrep.exe looks for pysemgrep next to itself, so put its folder on PATH.
     const env = { ...process.env, PATH: `${dirname(cmd)}${delimiter}${process.env.PATH ?? ""}`, SEMGREP_SEND_METRICS: "off" };
     try {
       const child = execFile(cmd, args, { cwd: opts.cwd, env, timeout: opts.timeoutMs ?? 600_000, maxBuffer: 256 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+        running.delete(child);
         const code = err && typeof (err as NodeJS.ErrnoException).code === "number" ? ((err as unknown as { code: number }).code) : err ? 1 : 0;
         resolve({ code: (err as NodeJS.ErrnoException | null)?.code === "ENOENT" ? 127 : code, stdout, stderr });
       });
-      child.on("error", (e) => resolve({ code: 127, stdout: "", stderr: e.message }));
+      running.add(child);
+      child.on("error", (e) => {
+        running.delete(child);
+        resolve({ code: 127, stdout: "", stderr: e.message });
+      });
     } catch (e) {
       // Some candidates can't be started at all (on Windows: "spawn UNKNOWN" for a file the
       // OS refuses to run). That means "not this candidate", never a crash.

@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
-  detectStack, IV_DIR, loadPolicy, runCheck, toMarkdown, toPosix, walkFiles, writeOutput, type CheckReport, type Config, type Finding,
+  detectStack, IV_DIR, killEngineProcesses, loadPolicy, runCheck, toMarkdown, toPosix, walkFiles, writeOutput, type CheckReport, type Config, type Finding,
 } from "@integration-verifier/core";
 
 export const HARNESSES = ["claude-code", "codex", "gemini-cli"] as const;
@@ -241,6 +241,7 @@ export async function runHook(harness: Harness, event: HookEvent, rawInput: stri
     if (!detectStack([root]).units.some((u) => u.role !== "unknown")) return { stdout: "", code: 0 };
     const work = event === "stop" ? stop(harness, input, root) : postWrite(harness, input, root);
     const out = await withBudget(Number(env.IV_HOOK_BUDGET_MS) || BUDGET_MS[event], work);
+    if (out === "timeout") killEngineProcesses();
     return out === "timeout" ? failed(`it did not finish within ${Math.round((Number(env.IV_HOOK_BUDGET_MS) || BUDGET_MS[event]) / 1000)} s`) : out;
   } catch (e) {
     return failed((e as Error).message);

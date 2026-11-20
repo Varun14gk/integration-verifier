@@ -10,8 +10,9 @@ import {
   addDismissal, applyGate, buildFlow, buildMap, CONFIG_TEMPLATE, configPath, detectStack, formatCheckSummary, formatFlowSummary, formatMapSummary,
   formatStackSummary, indexUi, IV_DIR, loadConfig, runCheck, toMarkdown, toSarif, VERSION, writeOutput, type CheckReport, type Config,
 } from "@integration-verifier/core";
-import { planSteps, runRuntime, RuntimeConfigError, type RuntimeReport } from "@integration-verifier/runtime";
-import { defaultMcpRoot, serveStdio } from "@integration-verifier/mcp";
+// The runtime (Playwright) and MCP (SDK) packages load only for the commands that use them,
+// so hooks and `iv check` start fast.
+import type { RuntimeReport } from "@integration-verifier/runtime";
 import { doctor, formatDoctor } from "./doctor.js";
 import { checkStaged } from "./staged.js";
 import { HARNESSES, HOOK_EVENTS, runHook, type Harness, type HookEvent } from "./hooks.js";
@@ -269,6 +270,7 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
         return;
       }
       const runOpts = { start: opts.start, mode: opts.mode as "auto" | "crawl" | "tests", schemathesis: !!opts.schemathesis };
+      const { planSteps, runRuntime, RuntimeConfigError } = await import("@integration-verifier/runtime");
       let steps;
       try {
         steps = planSteps(root, config, runOpts);
@@ -330,6 +332,7 @@ export function buildProgram(io: Io = defaultIo): { program: Command; result: { 
     .description("serve the iv tools over MCP (stdio) for coding agents")
     .option("-r, --root <dir>", "default project root for tool calls (default: the agent's project directory, else the current directory)")
     .action(async (opts: { root?: string }) => {
+      const { defaultMcpRoot, serveStdio } = await import("@integration-verifier/mcp");
       await serveStdio(resolve(opts.root ?? defaultMcpRoot()));
       // Keep running until the client closes stdin.
       await new Promise<void>((done) => process.stdin.on("close", () => done()));
