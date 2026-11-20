@@ -310,6 +310,7 @@ packages/cli         the `iv` command, `iv hook` (agent hooks) and `iv install`
 packages/mcp         MCP server exposing the same commands as tools
 adapters/shared      the single source for skills, subagents and the launcher
 adapters/<agent>     generated Claude Code, Codex and Gemini CLI files
+adapters/claude-code-directory  the Claude plugin directory edition (skills and agents only)
 fixtures/            sample apps with planted breaks and leaks (test ground truth)
 scripts/             license check, fixture answer keys, adapter sync
 action.yml           the GitHub Action; .pre-commit-hooks.yaml for the pre-commit framework
