@@ -9,8 +9,14 @@ import { fileURLToPath } from "node:url";
 import { VERSION } from "@integration-verifier/core";
 import type { Harness } from "./hooks.js";
 
-/** Repository root of this installation (packages/cli/dist -> repo). */
-export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+/**
+ * Where the adapters live. An npm install ships them inside the package (copied there by
+ * scripts/prepack.mjs); a clone has them at the repository root (packages/cli/dist -> repo).
+ */
+export const REPO_ROOT = (() => {
+  const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  return existsSync(join(pkg, "adapters", "shared", "iv-launch.mjs")) ? pkg : resolve(pkg, "..", "..");
+})();
 /** The CLI entry point that adapters launch. */
 export const CLI_ENTRY = resolve(dirname(fileURLToPath(import.meta.url)), "index.js");
 
@@ -402,11 +408,12 @@ export const SEMGREP_VERSION = "1.183.0";
 
 /**
  * The commit this clone is at, so the generated workflow pins the action to an exact
- * revision instead of a moving branch. Falls back to `main` outside a git checkout.
+ * revision instead of a moving branch. An npm install has no git checkout; it uses the
+ * release tag of its own version.
  */
 function actionRef(): { ref: string; pinned: boolean } {
-  const sha = git(REPO_ROOT, ["rev-parse", "HEAD"]).stdout.trim();
-  return /^[0-9a-f]{40}$/.test(sha) ? { ref: sha, pinned: true } : { ref: "main", pinned: false };
+  const sha = existsSync(join(REPO_ROOT, ".git")) ? git(REPO_ROOT, ["rev-parse", "HEAD"]).stdout.trim() : "";
+  return /^[0-9a-f]{40}$/.test(sha) ? { ref: sha, pinned: true } : { ref: `v${VERSION}`, pinned: false };
 }
 
 /** GitHub Actions workflow that runs the gate on pushes and pull requests and uploads SARIF. */
